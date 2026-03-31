@@ -6,8 +6,22 @@ dotenv.config();
 const port = process.env.PORT;
 const app = express();
 
-app.use(cors());
+// import routes
+import { connectDB } from "./database/db.js";
+import users from "./routes/userRoute/userRoute.js";
+
+
+// middleware
 app.use(express.json());
+app.use(cors());
+
+
+// mongo connection
+await connectDB();
+
+
+// routes
+app.use("/v1/api/users", users);
 
 app.get("/", (req, res) => {
     res.send("BD BOOK server running ")
