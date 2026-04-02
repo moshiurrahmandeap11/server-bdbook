@@ -13,11 +13,10 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Verify Cloudinary connection
 console.log("Cloudinary configured with cloud name:", process.env.CLOUDINARY_CLOUD_NAME);
 
-// File filter function
-const fileFilter = (req, file, cb) => {
+// File filter for profile/cover (images only)
+const imageFileFilter = (req, file, cb) => {
   const allowedImageTypes = /jpeg|jpg|png|gif|webp/;
   const extname = allowedImageTypes.test(file.originalname.toLowerCase().split('.').pop());
   const mimetype = allowedImageTypes.test(file.mimetype);
@@ -26,6 +25,19 @@ const fileFilter = (req, file, cb) => {
     return cb(null, true);
   } else {
     cb(new Error('Only image files are allowed!'), false);
+  }
+};
+
+// File filter for posts (images and videos)
+const postFileFilter = (req, file, cb) => {
+  const allowedTypes = /jpeg|jpg|png|gif|webp|mp4|mov|avi|mkv|webm/;
+  const extname = allowedTypes.test(file.originalname.toLowerCase().split('.').pop());
+  const mimetype = allowedTypes.test(file.mimetype);
+  
+  if (mimetype && extname) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only images and videos are allowed!'), false);
   }
 };
 
@@ -57,24 +69,54 @@ const coverPhotoStorage = new CloudinaryStorage({
   },
 });
 
+// Configure storage for post media - FIXED VERSION
+const postMediaStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: async (req, file) => {
+    const isImage = file.mimetype.startsWith('image');
+    const isVideo = file.mimetype.startsWith('video');
+    
+    let folder = 'bdbook/posts';
+    let resourceType = 'auto';
+    let format = isImage ? 'jpg' : 'mp4'; // Specify actual format instead of 'auto'
+    
+    if (isImage) {
+      resourceType = 'image';
+      format = 'jpg';
+    } else if (isVideo) {
+      resourceType = 'video';
+      format = 'mp4';
+    }
+    
+    return {
+      folder: folder,
+      resource_type: resourceType,
+      format: format, // Use specific format instead of 'auto'
+      public_id: `post_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`,
+    };
+  },
+});
+
 // Create multer instances
 const profilePictureUpload = multer({
   storage: profilePictureStorage,
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
-  },
-  fileFilter: fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: imageFileFilter,
 });
 
 const coverPhotoUpload = multer({
   storage: coverPhotoStorage,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-  },
-  fileFilter: fileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: imageFileFilter,
 });
 
-// Helper function to delete file from Cloudinary
+const postUpload = multer({
+  storage: postMediaStorage,
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: postFileFilter,
+});
+
+// Helper functions
 const deleteFromCloudinary = async (publicId, resourceType = 'image') => {
   try {
     if (!publicId) return null;
@@ -89,7 +131,6 @@ const deleteFromCloudinary = async (publicId, resourceType = 'image') => {
   }
 };
 
-// Helper function to get optimized URL
 const getOptimizedUrl = (publicId, options = {}) => {
   if (!publicId) return null;
   return cloudinary.url(publicId, {
@@ -100,10 +141,10 @@ const getOptimizedUrl = (publicId, options = {}) => {
   });
 };
 
+// Export all
 export {
   cloudinary,
   coverPhotoUpload,
   deleteFromCloudinary,
-  getOptimizedUrl,
-  profilePictureUpload
+  getOptimizedUrl, postUpload, profilePictureUpload
 };

@@ -9,6 +9,7 @@ const app = express();
 
 // import routes
 import { connectDB } from "./database/db.js";
+import posts from "./routes/postsRoute/postsRoute.js";
 import users from "./routes/userRoute/userRoute.js";
 
 
@@ -27,6 +28,7 @@ await connectDB();
 
 // routes
 app.use("/v1/api/users", users);
+app.use("/v1/api/posts", posts);
 
 app.get("/", (req, res) => {
     res.send("BD BOOK server running ")
