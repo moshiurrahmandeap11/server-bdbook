@@ -484,6 +484,395 @@ router.post("/upload-cover-photo", authenticateToken, (req, res) => {
   });
 });
 
+// ==================== FRIEND REQUEST SYSTEM ====================
+
+// Send friend request
+router.post("/friend-request/:userId", authenticateToken, async (req, res) => {
+  try {
+    const senderId = req.user.id;
+    const receiverId = req.params.userId;
+    
+    if (senderId === receiverId) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot send friend request to yourself"
+      });
+    }
+    
+    const sender = await db.collection("users").findOne({ _id: new ObjectId(senderId) });
+    const receiver = await db.collection("users").findOne({ _id: new ObjectId(receiverId) });
+    
+    if (!sender || !receiver) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+    
+    // Check if already friends
+    const existingFriend = await db.collection("friends").findOne({
+      $or: [
+        { userId: senderId, friendId: receiverId, status: "accepted" },
+        { userId: receiverId, friendId: senderId, status: "accepted" }
+      ]
+    });
+    
+    if (existingFriend) {
+      return res.status(400).json({
+        success: false,
+        message: "Already friends"
+      });
+    }
+    
+    // Check if request already sent
+    const existingRequest = await db.collection("friendRequests").findOne({
+      $or: [
+        { senderId: senderId, receiverId: receiverId, status: "pending" },
+        { senderId: receiverId, receiverId: senderId, status: "pending" }
+      ]
+    });
+    
+    if (existingRequest) {
+      return res.status(400).json({
+        success: false,
+        message: "Friend request already sent"
+      });
+    }
+    
+    const friendRequest = {
+      senderId: senderId,
+      senderName: sender.fullName,
+      senderProfilePicture: sender.profilePicture?.url || null,
+      receiverId: receiverId,
+      receiverName: receiver.fullName,
+      receiverProfilePicture: receiver.profilePicture?.url || null,
+      status: "pending",
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    await db.collection("friendRequests").insertOne(friendRequest);
+    
+    res.json({
+      success: true,
+      message: "Friend request sent successfully"
+    });
+  } catch (error) {
+    console.error("Friend request error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to send friend request"
+    });
+  }
+});
+
+// Accept friend request
+router.post("/friend-request/accept/:requestId", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { requestId } = req.params;
+    
+    const friendRequest = await db.collection("friendRequests").findOne({
+      _id: new ObjectId(requestId),
+      receiverId: userId,
+      status: "pending"
+    });
+    
+    if (!friendRequest) {
+      return res.status(404).json({
+        success: false,
+        message: "Friend request not found"
+      });
+    }
+    
+    // Update request status
+    await db.collection("friendRequests").updateOne(
+      { _id: new ObjectId(requestId) },
+      { $set: { status: "accepted", updatedAt: new Date() } }
+    );
+    
+    // Add to friends collection
+    await db.collection("friends").insertOne({
+      userId: friendRequest.senderId,
+      friendId: friendRequest.receiverId,
+      friendName: friendRequest.receiverName,
+      friendProfilePicture: friendRequest.receiverProfilePicture,
+      createdAt: new Date()
+    });
+    
+    await db.collection("friends").insertOne({
+      userId: friendRequest.receiverId,
+      friendId: friendRequest.senderId,
+      friendName: friendRequest.senderName,
+      friendProfilePicture: friendRequest.senderProfilePicture,
+      createdAt: new Date()
+    });
+    
+    res.json({
+      success: true,
+      message: "Friend request accepted"
+    });
+  } catch (error) {
+    console.error("Accept friend request error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to accept friend request"
+    });
+  }
+});
+
+// Decline friend request
+router.post("/friend-request/decline/:requestId", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { requestId } = req.params;
+    
+    const friendRequest = await db.collection("friendRequests").findOne({
+      _id: new ObjectId(requestId),
+      receiverId: userId,
+      status: "pending"
+    });
+    
+    if (!friendRequest) {
+      return res.status(404).json({
+        success: false,
+        message: "Friend request not found"
+      });
+    }
+    
+    await db.collection("friendRequests").updateOne(
+      { _id: new ObjectId(requestId) },
+      { $set: { status: "declined", updatedAt: new Date() } }
+    );
+    
+    res.json({
+      success: true,
+      message: "Friend request declined"
+    });
+  } catch (error) {
+    console.error("Decline friend request error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to decline friend request"
+    });
+  }
+});
+
+// Get friend requests for current user
+router.get("/friend-requests", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const requests = await db.collection("friendRequests")
+      .find({ receiverId: userId, status: "pending" })
+      .sort({ createdAt: -1 })
+      .toArray();
+    
+    res.json({
+      success: true,
+      data: requests
+    });
+  } catch (error) {
+    console.error("Get friend requests error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get friend requests"
+    });
+  }
+});
+
+// Get friends list
+router.get("/friends", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const friends = await db.collection("friends")
+      .find({ userId: userId })
+      .sort({ createdAt: -1 })
+      .toArray();
+    
+    res.json({
+      success: true,
+      data: friends
+    });
+  } catch (error) {
+    console.error("Get friends error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get friends list"
+    });
+  }
+});
+
+// Check friend status between two users
+router.get("/friend-status/:userId", authenticateToken, async (req, res) => {
+  try {
+    const currentUserId = req.user.id;
+    const targetUserId = req.params.userId;
+    
+    // Check if already friends
+    const isFriend = await db.collection("friends").findOne({
+      $or: [
+        { userId: currentUserId, friendId: targetUserId },
+        { userId: targetUserId, friendId: currentUserId }
+      ]
+    });
+    
+    if (isFriend) {
+      return res.json({ success: true, status: "friends" });
+    }
+    
+    // Check if request sent
+    const sentRequest = await db.collection("friendRequests").findOne({
+      senderId: currentUserId,
+      receiverId: targetUserId,
+      status: "pending"
+    });
+    
+    if (sentRequest) {
+      return res.json({ success: true, status: "request_sent" });
+    }
+    
+    // Check if request received
+    const receivedRequest = await db.collection("friendRequests").findOne({
+      senderId: targetUserId,
+      receiverId: currentUserId,
+      status: "pending"
+    });
+    
+    if (receivedRequest) {
+      return res.json({ success: true, status: "request_received" });
+    }
+    
+    res.json({ success: true, status: "not_friends" });
+  } catch (error) {
+    console.error("Check friend status error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to check friend status"
+    });
+  }
+});
+
+// Remove friend
+router.delete("/friends/:friendId", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { friendId } = req.params;
+    
+    await db.collection("friends").deleteMany({
+      $or: [
+        { userId: userId, friendId: friendId },
+        { userId: friendId, friendId: userId }
+      ]
+    });
+    
+    res.json({
+      success: true,
+      message: "Friend removed successfully"
+    });
+  } catch (error) {
+    console.error("Remove friend error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to remove friend"
+    });
+  }
+});
+
+
+// Get conversations (friends with last message)
+router.get("/conversations", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Get all friends
+    const friends = await db.collection("friends")
+      .find({ userId: userId })
+      .toArray();
+    
+    const conversations = [];
+    
+    for (const friend of friends) {
+      // Get last message
+      const lastMessage = await db.collection("messages")
+        .find({
+          $or: [
+            { senderId: userId, receiverId: friend.friendId },
+            { senderId: friend.friendId, receiverId: userId }
+          ]
+        })
+        .sort({ createdAt: -1 })
+        .limit(1)
+        .toArray();
+      
+      // Get unread count
+      const unreadCount = await db.collection("messages")
+        .countDocuments({
+          senderId: friend.friendId,
+          receiverId: userId,
+          isRead: false
+        });
+      
+      conversations.push({
+        friendId: friend.friendId,
+        friendName: friend.friendName,
+        friendProfilePicture: friend.friendProfilePicture,
+        lastMessage: lastMessage[0] || null,
+        unreadCount: unreadCount,
+        updatedAt: lastMessage[0]?.createdAt || friend.createdAt
+      });
+    }
+    
+    // Sort by last message time
+    conversations.sort((a, b) => {
+      if (!a.lastMessage) return 1;
+      if (!b.lastMessage) return -1;
+      return new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt);
+    });
+    
+    res.json({
+      success: true,
+      data: conversations
+    });
+  } catch (error) {
+    console.error("Get conversations error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get conversations"
+    });
+  }
+});
+
+// Get messages between two users
+router.get("/messages/:friendId", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { friendId } = req.params;
+    
+    const messages = await db.collection("messages")
+      .find({
+        $or: [
+          { senderId: userId, receiverId: friendId },
+          { senderId: friendId, receiverId: userId }
+        ]
+      })
+      .sort({ createdAt: 1 })
+      .toArray();
+    
+    res.json({
+      success: true,
+      data: messages
+    });
+  } catch (error) {
+    console.error("Get messages error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get messages"
+    });
+  }
+});
+
 // ==================== REMOVE PROFILE PICTURE ====================
 router.delete("/remove-profile-pic", authenticateToken, async (req, res) => {
   try {
