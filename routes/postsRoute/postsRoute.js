@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { ObjectId } from "mongodb";
 import { db } from "../../database/db.js";
 import { postUpload } from "../../middleware/upload.js";
+import { createNotification } from "../notificationRoute/notificationRoutes.js";
 
 
 const router = Router();
@@ -218,7 +219,7 @@ router.get("/user/:userId", async (req, res) => {
   }
 });
 
-// ==================== LIKE/UNLIKE POST ====================
+// Update the like/unlike endpoint
 router.post("/:postId/like", authenticateToken, async (req, res) => {
   try {
     const { postId } = req.params;
@@ -267,6 +268,18 @@ router.post("/:postId/like", authenticateToken, async (req, res) => {
         }
       );
       
+      // Create notification for post owner (if not liking own post)
+      if (post.userId !== userId) {
+        const user = await db.collection("users").findOne({ _id: new ObjectId(userId) });
+        await createNotification(post.userId, 'post_like', {
+          postId: postId,
+          likerId: userId,
+          likerName: user.fullName,
+          likerProfilePicture: user.profilePicture?.url || null,
+          message: `${user.fullName} liked your post`
+        });
+      }
+      
       res.status(200).json({
         success: true,
         message: "Post liked successfully",
@@ -282,7 +295,7 @@ router.post("/:postId/like", authenticateToken, async (req, res) => {
   }
 });
 
-// ==================== ADD COMMENT ====================
+// Update the add comment endpoint
 router.post("/:postId/comment", authenticateToken, async (req, res) => {
   try {
     const { postId } = req.params;
@@ -336,6 +349,19 @@ router.post("/:postId/comment", authenticateToken, async (req, res) => {
         $inc: { commentsCount: 1 }
       }
     );
+    
+    // Create notification for post owner (if not commenting on own post)
+    if (post.userId !== userId) {
+      await createNotification(post.userId, 'post_comment', {
+        postId: postId,
+        commentId: comment._id,
+        commenterId: userId,
+        commenterName: user.fullName,
+        commenterProfilePicture: user.profilePicture?.url || null,
+        commentText: text.trim(),
+        message: `${user.fullName} commented on your post: "${text.trim().substring(0, 50)}${text.trim().length > 50 ? '...' : ''}"`
+      });
+    }
     
     res.status(200).json({
       success: true,

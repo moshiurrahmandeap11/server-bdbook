@@ -9,6 +9,7 @@ import {
   getOptimizedUrl,
   profilePictureUpload
 } from "../../middleware/upload.js";
+import { createNotification } from "../notificationRoute/notificationRoutes.js";
 
 const router = Router();
 
@@ -322,10 +323,6 @@ router.delete("/:id", authenticateToken, async (req, res) => {
   }
 });
 
-// In users.js, update the upload endpoints:
-
-// In users.js, update the upload endpoints with more detailed error handling:
-
 // ==================== UPLOAD PROFILE PICTURE ====================
 router.post("/upload-profile-pic", authenticateToken, (req, res) => {
   profilePictureUpload.single("profilePic")(req, res, async (err) => {
@@ -484,9 +481,7 @@ router.post("/upload-cover-photo", authenticateToken, (req, res) => {
   });
 });
 
-// ==================== FRIEND REQUEST SYSTEM ====================
-
-// Send friend request
+// Update the friend request endpoint
 router.post("/friend-request/:userId", authenticateToken, async (req, res) => {
   try {
     const senderId = req.user.id;
@@ -553,6 +548,15 @@ router.post("/friend-request/:userId", authenticateToken, async (req, res) => {
     
     await db.collection("friendRequests").insertOne(friendRequest);
     
+    // Create notification for receiver
+    await createNotification(receiverId, 'friend_request', {
+      senderId: senderId,
+      senderName: sender.fullName,
+      senderProfilePicture: sender.profilePicture?.url || null,
+      message: `${sender.fullName} sent you a friend request`,
+      requestId: friendRequest._id
+    });
+    
     res.json({
       success: true,
       message: "Friend request sent successfully"
@@ -566,7 +570,7 @@ router.post("/friend-request/:userId", authenticateToken, async (req, res) => {
   }
 });
 
-// Accept friend request
+// Update the accept friend request endpoint
 router.post("/friend-request/accept/:requestId", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -608,6 +612,14 @@ router.post("/friend-request/accept/:requestId", authenticateToken, async (req, 
       createdAt: new Date()
     });
     
+    // Create notification for sender
+    await createNotification(friendRequest.senderId, 'friend_accept', {
+      receiverId: userId,
+      receiverName: friendRequest.receiverName,
+      receiverProfilePicture: friendRequest.receiverProfilePicture,
+      message: `${friendRequest.receiverName} accepted your friend request`
+    });
+    
     res.json({
       success: true,
       message: "Friend request accepted"
@@ -617,6 +629,59 @@ router.post("/friend-request/accept/:requestId", authenticateToken, async (req, 
     res.status(500).json({
       success: false,
       message: "Failed to accept friend request"
+    });
+  }
+});
+
+// Get unread messages count - Optimized version
+router.get("/unread-messages/count", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const unreadCount = await db.collection("messages").countDocuments({
+      receiverId: userId,
+      isRead: false
+    });
+    
+    res.json({
+      success: true,
+      count: unreadCount
+    });
+  } catch (error) {
+    console.error("Get unread messages count error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get unread messages count"
+    });
+  }
+});
+
+// Mark messages as read for a specific conversation
+router.patch("/messages/read/:senderId", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { senderId } = req.params;
+    
+    await db.collection("messages").updateMany(
+      {
+        senderId: senderId,
+        receiverId: userId,
+        isRead: false
+      },
+      {
+        $set: { isRead: true, updatedAt: new Date() }
+      }
+    );
+    
+    res.json({
+      success: true,
+      message: "Messages marked as read"
+    });
+  } catch (error) {
+    console.error("Mark messages as read error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to mark messages as read"
     });
   }
 });
@@ -871,6 +936,135 @@ router.get("/messages/:friendId", authenticateToken, async (req, res) => {
       message: "Failed to get messages"
     });
   }
+});
+
+// ==================== SEND MESSAGE ====================
+router.post("/send-message/:receiverId", authenticateToken, async (req, res) => {
+  try {
+    const senderId = req.user.id;
+    const { receiverId } = req.params;
+    const { message, messageType = "text", mediaUrl = null, fileName = null, fileSize = null } = req.body;
+
+    if (!message && !mediaUrl) {
+      return res.status(400).json({
+        success: false,
+        message: "Message content is required"
+      });
+    }
+
+    const newMessage = {
+      _id: new ObjectId(),
+      senderId: senderId,
+      receiverId: receiverId,
+      message: message || "",
+      messageType: messageType,
+      mediaUrl: mediaUrl,
+      fileName: fileName,
+      fileSize: fileSize,
+      isRead: false,
+      isDelivered: false,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    await db.collection("messages").insertOne(newMessage);
+
+    // Update conversation last message
+    await db.collection("conversations").updateOne(
+      {
+        $or: [
+          { userId: senderId, friendId: receiverId },
+          { userId: receiverId, friendId: senderId }
+        ]
+      },
+      {
+        $set: {
+          lastMessage: message || (messageType === "image" ? "📷 Photo" : "📎 File"),
+          lastMessageTime: new Date(),
+          updatedAt: new Date()
+        },
+        $setOnInsert: {
+          userId: senderId,
+          friendId: receiverId,
+          createdAt: new Date()
+        }
+      },
+      { upsert: true }
+    );
+
+    res.json({
+      success: true,
+      message: "Message sent successfully",
+      data: newMessage
+    });
+  } catch (error) {
+    console.error("Send message error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to send message"
+    });
+  }
+});
+
+// ==================== UPLOAD MESSAGE MEDIA ====================
+router.post("/upload-message-media", authenticateToken, (req, res) => {
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = /jpeg|jpg|png|gif|webp|mp4|pdf|doc|docx|txt/;
+      const extname = allowedTypes.test(file.originalname.toLowerCase().split('.').pop());
+      const mimetype = allowedTypes.test(file.mimetype);
+      if (mimetype && extname) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only images, videos, and documents are allowed!'), false);
+      }
+    }
+  }).single("file");
+
+  upload(req, res, async (err) => {
+    try {
+      if (err) {
+        return res.status(400).json({
+          success: false,
+          message: err.message
+        });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: "No file uploaded"
+        });
+      }
+
+      // Convert buffer to base64 for temporary storage
+      // In production, upload to Cloudinary or S3
+      const base64 = req.file.buffer.toString('base64');
+      const mimeType = req.file.mimetype;
+      const fileType = mimeType.startsWith('image') ? 'image' : 
+                      mimeType.startsWith('video') ? 'video' : 'document';
+
+      const mediaUrl = `data:${mimeType};base64,${base64}`;
+
+      res.json({
+        success: true,
+        data: {
+          url: mediaUrl,
+          type: fileType,
+          name: req.file.originalname,
+          size: req.file.size
+        }
+      });
+    } catch (error) {
+      console.error("Upload error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to upload file"
+      });
+    }
+  });
 });
 
 // ==================== REMOVE PROFILE PICTURE ====================
