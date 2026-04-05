@@ -24,182 +24,139 @@ class SocketManager {
       },
     });
 
-    // ✅ FIXED: Guest দের allow করো, শুধু invalid token এ block করো না
-    this.io.use((socket, next) => {
-      const token = socket.handshake.auth.token;
-
-      if (!token) {
-        // token নেই = guest user, allow করো
-        socket.userId = `guest_${Math.random().toString(36).substring(2, 10)}`;
-        socket.isGuest = true;
-        console.log("Guest socket connected:", socket.userId);
-        return next();
-      }
-
-      try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        socket.userId = decoded.id;
-        socket.isGuest = false;
-        console.log("Authenticated socket connected:", socket.userId);
-        next();
-      } catch (err) {
-        // ✅ Invalid token হলেও guest হিসেবে allow করো, reject করো না
-        socket.userId = `guest_${Math.random().toString(36).substring(2, 10)}`;
-        socket.isGuest = true;
-        console.log("Invalid token, connected as guest:", socket.userId);
-        next();
-      }
-    });
+this.io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+  if (!token) {
+    socket.userId = `guest_${Math.random().toString(36).substring(2, 15)}`;
+    socket.isGuest = true;
+    return next();
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.userId = decoded.id;
+    socket.isGuest = false;
+  } catch (err) {
+    socket.userId = `guest_${Math.random().toString(36).substring(2, 15)}`;
+    socket.isGuest = true;
+  }
+  next();
+});
 
     this.io.on("connection", this.handleConnection.bind(this));
     console.log("Socket.io initialized");
   }
 
-  handleConnection(socket) {
-    console.log("User connected:", socket.userId, socket.isGuest ? "(guest)" : "(auth)");
+handleConnection(socket) {
+  console.log("User connected:", socket.userId, socket.isGuest ? "(guest)" : "(auth)");
 
-    this.onlineUsers.set(socket.userId, socket.id);
-    this.io.emit("user_online", Array.from(this.onlineUsers.keys()));
+  // ✅ onlineUsers-এ socket.id স্টোর করি userId দিয়ে
+  this.onlineUsers.set(socket.userId, socket.id);
+
+  this.io.emit("user_online", Array.from(this.onlineUsers.keys()));
 
     // ==================== ROOM EVENT HANDLERS ====================
 
-    socket.on("create_room", async (data) => {
-      const { roomId, roomName, userId, userName, userProfilePicture } = data;
+socket.on("create_room", (data) => {
+    const { roomId, roomName, userName, userProfilePicture } = data;
+    const effectiveUserId = data.userId || socket.userId;
 
-      // ✅ client থেকে আসা userId use করো (guest এর জন্য)
-      const effectiveUserId = userId || socket.userId;
+    socket.join(roomId);
+    socket.roomId = roomId;
+    socket.userId = effectiveUserId;        // consistent করা
+    socket.userName = userName;
+    socket.userProfilePicture = userProfilePicture;
 
-      console.log(`🏠 Creating room: ${roomId} by ${userName}`);
-
-      socket.join(roomId);
-      socket.roomId = roomId;
-      socket.userId = effectiveUserId;
-      socket.userName = userName;
-      socket.userProfilePicture = userProfilePicture;
-
-      this.rooms.set(roomId, {
-        id: roomId,
-        name: roomName,
-        createdBy: effectiveUserId,
-        createdAt: new Date(),
-        participants: [
-          {
-            userId: effectiveUserId,
-            userName: userName,
-            userProfilePicture: userProfilePicture,
-          },
-        ],
-      });
-
-      socket.emit("room_created", {
-        roomId,
-        roomName,
-        createdBy: effectiveUserId,
-      });
-
-      console.log(`✅ Room created: ${roomId}`);
+    this.rooms.set(roomId, {
+      id: roomId,
+      name: roomName,
+      createdBy: effectiveUserId,
+      participants: [{ userId: effectiveUserId, userName, userProfilePicture }],
     });
 
-socket.on("join_room", async (data) => {
-  const { roomId, userId, userName, userProfilePicture } = data;
-  
-  // ✅ গুরুত্বপূর্ণ: userId যদি না আসে তাহলে socket.userId ব্যবহার করো
-  const effectiveUserId = userId || socket.userId;
-  const effectiveUserName = userName || socket.userName || "Guest";
-  
-  console.log(`🚪 User ${effectiveUserName} (${effectiveUserId}) joining room: ${roomId}`);
+    socket.emit("room_created", { roomId, roomName });
+  });
 
-  // Check if room exists
-  if (!this.rooms || !this.rooms.has(roomId)) {
-    console.log(`❌ Room ${roomId} not found`);
-    socket.emit("room_error", { message: "Room not found. Please check the meeting ID." });
-    return;
-  }
+socket.on("join_room", (data) => {
+    const { roomId, userId, userName, userProfilePicture } = data;
+    const effectiveUserId = userId || socket.userId;
+    const effectiveUserName = userName || "Guest";
 
-  const room = this.rooms.get(roomId);
-  
-  // Join the socket room
-  socket.join(roomId);
-  socket.roomId = roomId;
-  socket.userId = effectiveUserId;
-  socket.userName = effectiveUserName;
-  socket.userProfilePicture = userProfilePicture;
-  
-  // Add to participants list if not already there
-  const existingParticipant = room.participants.find(p => p.userId === effectiveUserId);
-  if (!existingParticipant) {
-    room.participants.push({
+    if (!this.rooms.has(roomId)) {
+      socket.emit("room_error", { message: "Room not found." });
+      return;
+    }
+
+    const room = this.rooms.get(roomId);
+
+    socket.join(roomId);
+    socket.roomId = roomId;
+    socket.userId = effectiveUserId;          // ✅ consistent
+    socket.userName = effectiveUserName;
+    socket.userProfilePicture = userProfilePicture;
+
+    // add to room if not exists
+    if (!room.participants.some(p => p.userId === effectiveUserId)) {
+      room.participants.push({
+        userId: effectiveUserId,
+        userName: effectiveUserName,
+        userProfilePicture,
+      });
+    }
+
+    const otherParticipants = room.participants.filter(p => p.userId !== effectiveUserId);
+
+    // Joining user-কে room info দাও
+    socket.emit("room_joined", {
+      roomId,
+      roomName: room.name,
+      participants: otherParticipants,   // existing users
+    });
+
+    // Existing users-কে নতুন participant জানাও
+    socket.to(roomId).emit("new_participant", {
       userId: effectiveUserId,
       userName: effectiveUserName,
-      userProfilePicture: userProfilePicture,
+      userProfilePicture,
     });
-  }
-  
-  // Get other participants (excluding current user)
-  const otherParticipants = room.participants.filter(p => p.userId !== effectiveUserId);
-  
-  console.log(`📋 Room ${roomId} now has ${room.participants.length} participants`);
-  
-  // ✅ Send room info to the joining user
-  socket.emit("room_joined", {
-    roomId,
-    roomName: room.name,
-    participants: otherParticipants,
   });
-  
-  // ✅ Notify other participants about the new user
-  socket.to(roomId).emit("new_participant", {
-    userId: effectiveUserId,
-    userName: effectiveUserName,
-    userProfilePicture: userProfilePicture,
+
+  // ==================== SIGNALING (offer/answer/ice) ====================
+  //  এখানে onlineUsers.get(to) এর পরিবর্তে room-এর সব socket-কে target করা যায়, কিন্তু userId দিয়ে খুঁজে পাওয়া সহজ
+
+socket.on("offer", (data) => {
+    const { roomId, to, offer } = data;
+    const targetSocketId = this.onlineUsers.get(to);
+    if (targetSocketId) {
+      this.io.to(targetSocketId).emit("offer", {
+        from: socket.userId,
+        offer,
+      });
+    } else {
+      console.warn(`Target ${to} not found in onlineUsers for offer`);
+    }
   });
-  
-  console.log(`✅ User ${effectiveUserName} successfully joined room ${roomId}`);
-});
 
-    socket.on("offer", (data) => {
-      const { roomId, to, offer } = data;
-      console.log(`📡 Offer from ${socket.userId} to ${to}`);
+socket.on("answer", (data) => {
+    const { roomId, to, answer } = data;
+    const targetSocketId = this.onlineUsers.get(to);
+    if (targetSocketId) {
+      this.io.to(targetSocketId).emit("answer", {
+        from: socket.userId,
+        answer,
+      });
+    }
+  });
 
-      const targetSocketId = this.onlineUsers.get(to);
-      if (targetSocketId) {
-        this.io.to(targetSocketId).emit("offer", {
-          from: socket.userId,
-          offer: offer,
-        });
-        console.log(`✅ Offer forwarded to ${to}`);
-      } else {
-        console.log(`❌ Target ${to} not found in onlineUsers`);
-      }
-    });
-
-    socket.on("answer", (data) => {
-      const { roomId, to, answer } = data;
-      console.log(`📡 Answer from ${socket.userId} to ${to}`);
-
-      const targetSocketId = this.onlineUsers.get(to);
-      if (targetSocketId) {
-        this.io.to(targetSocketId).emit("answer", {
-          from: socket.userId,
-          answer: answer,
-        });
-        console.log(`✅ Answer forwarded to ${to}`);
-      } else {
-        console.log(`❌ Target ${to} not found`);
-      }
-    });
-
-    socket.on("ice_candidate", (data) => {
-      const { roomId, to, candidate } = data;
-
-      const targetSocketId = this.onlineUsers.get(to);
-      if (targetSocketId) {
-        this.io.to(targetSocketId).emit("ice_candidate", {
-          from: socket.userId,
-          candidate: candidate,
-        });
-      }
-    });
+socket.on("ice_candidate", (data) => {
+    const { roomId, to, candidate } = data;
+    const targetSocketId = this.onlineUsers.get(to);
+    if (targetSocketId) {
+      this.io.to(targetSocketId).emit("ice_candidate", {
+        from: socket.userId,
+        candidate,
+      });
+    }
+  });
 
     socket.on("send_room_message", (data) => {
       const { roomId, message, userId, userName, userProfilePicture } = data;
