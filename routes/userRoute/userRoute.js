@@ -1207,22 +1207,30 @@ router.get("/search/:query", async (req, res) => {
     const { query } = req.params;
     const { limit = 20 } = req.query;
     
-    if (!query || query.length < 2) {
+    if (!query || query.length < 1) {
       return res.status(400).json({
         success: false,
-        message: "Search query must be at least 2 characters"
+        message: "Search query is required"
       });
     }
+    
+    // Create search regex (case insensitive)
+    const searchRegex = new RegExp(query, 'i');
     
     const users = await db
       .collection("users")
       .find({
         $or: [
-          { fullName: { $regex: query, $options: "i" } },
-          { email: { $regex: query, $options: "i" } }
+          { fullName: { $regex: searchRegex } },
+          { email: { $regex: searchRegex } }
         ]
       })
-      .project({ password: 0 })
+      .project({ 
+        password: 0,
+        // optionally exclude other sensitive fields
+        isVerified: 0,
+        isActive: 0
+      })
       .limit(parseInt(limit))
       .toArray();
     
@@ -1230,7 +1238,8 @@ router.get("/search/:query", async (req, res) => {
       success: true,
       message: "Users found",
       data: users,
-      count: users.length
+      count: users.length,
+      searchTerm: query
     });
   } catch (error) {
     console.error("User search error:", error);
