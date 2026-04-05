@@ -77,48 +77,51 @@ socket.on("create_room", (data) => {
   });
 
 socket.on("join_room", (data) => {
-    const { roomId, userId, userName, userProfilePicture } = data;
-    const effectiveUserId = userId || socket.userId;
-    const effectiveUserName = userName || "Guest";
+  const { roomId, userId, userName, userProfilePicture } = data;
+  const effectiveUserId = userId || socket.userId;
+  const effectiveUserName = userName || "Guest";
 
-    if (!this.rooms.has(roomId)) {
-      socket.emit("room_error", { message: "Room not found." });
-      return;
-    }
+  console.log(`User ${effectiveUserName} joining room: ${roomId}`);
 
-    const room = this.rooms.get(roomId);
+  if (!this.rooms.has(roomId)) {
+    socket.emit("room_error", { message: "Room not found." });
+    return;
+  }
 
-    socket.join(roomId);
-    socket.roomId = roomId;
-    socket.userId = effectiveUserId;          // ✅ consistent
-    socket.userName = effectiveUserName;
-    socket.userProfilePicture = userProfilePicture;
+  const room = this.rooms.get(roomId);
 
-    // add to room if not exists
-    if (!room.participants.some(p => p.userId === effectiveUserId)) {
-      room.participants.push({
-        userId: effectiveUserId,
-        userName: effectiveUserName,
-        userProfilePicture,
-      });
-    }
+  socket.join(roomId);
+  socket.roomId = roomId;
+  socket.userId = effectiveUserId;
+  socket.userName = effectiveUserName;
+  socket.userProfilePicture = userProfilePicture;
 
-    const otherParticipants = room.participants.filter(p => p.userId !== effectiveUserId);
-
-    // Joining user-কে room info দাও
-    socket.emit("room_joined", {
-      roomId,
-      roomName: room.name,
-      participants: otherParticipants,   // existing users
-    });
-
-    // Existing users-কে নতুন participant জানাও
-    socket.to(roomId).emit("new_participant", {
+  // Add to participants if not exists
+  if (!room.participants.some(p => p.userId === effectiveUserId)) {
+    room.participants.push({
       userId: effectiveUserId,
       userName: effectiveUserName,
       userProfilePicture,
     });
+  }
+
+  // Get other participants
+  const otherParticipants = room.participants.filter(p => p.userId !== effectiveUserId);
+
+  // Send room info to joining user
+  socket.emit("room_joined", {
+    roomId,
+    roomName: room.name,
+    participants: otherParticipants,
   });
+
+  // Notify other participants
+  socket.to(roomId).emit("new_participant", {
+    userId: effectiveUserId,
+    userName: effectiveUserName,
+    userProfilePicture,
+  });
+});
 
   // ==================== SIGNALING (offer/answer/ice) ====================
   //  এখানে onlineUsers.get(to) এর পরিবর্তে room-এর সব socket-কে target করা যায়, কিন্তু userId দিয়ে খুঁজে পাওয়া সহজ
