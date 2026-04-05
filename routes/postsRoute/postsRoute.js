@@ -635,6 +635,156 @@ router.delete("/:postId", authenticateToken, async (req, res) => {
   }
 });
 
+// Add this endpoint for replying to comments
+router.post("/:postId/comment", authenticateToken, async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const { text, parentCommentId } = req.body;
+    const userId = req.user.id;
+    
+    if (!text || text.trim() === "") {
+      return res.status(400).json({
+        success: false,
+        message: "Comment text is required"
+      });
+    }
+    
+    if (!ObjectId.isValid(postId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid post ID format"
+      });
+    }
+    
+    const user = await db.collection("users").findOne(
+      { _id: new ObjectId(userId) },
+      { projection: { password: 0 } }
+    );
+    
+    const post = await db.collection("posts").findOne({ _id: new ObjectId(postId) });
+    
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        message: "Post not found"
+      });
+    }
+    
+    const comment = {
+      _id: new ObjectId(),
+      userId: userId,
+      userName: user.fullName,
+      userProfilePicture: user.profilePicture?.url || null,
+      text: text.trim(),
+      createdAt: new Date(),
+      likes: [],
+      likesCount: 0,
+      replies: []
+    };
+    
+    // If it's a reply to a comment
+    if (parentCommentId) {
+      await db.collection("posts").updateOne(
+        { _id: new ObjectId(postId), "comments._id": new ObjectId(parentCommentId) },
+        { 
+          $push: { "comments.$.replies": comment }
+        }
+      );
+    } else {
+      // Regular comment
+      await db.collection("posts").updateOne(
+        { _id: new ObjectId(postId) },
+        { 
+          $push: { comments: comment },
+          $inc: { commentsCount: 1 }
+        }
+      );
+    }
+    
+    // Create notification for post owner
+    if (post.userId !== userId) {
+      await createNotification(post.userId, 'post_comment', {
+        postId: postId,
+        commentId: comment._id,
+        commenterId: userId,
+        commenterName: user.fullName,
+        commenterProfilePicture: user.profilePicture?.url || null,
+        commentText: text.trim(),
+        message: `${user.fullName} commented on your post`
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: parentCommentId ? "Reply added successfully" : "Comment added successfully",
+      data: comment
+    });
+  } catch (error) {
+    console.error("Add comment error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to add comment"
+    });
+  }
+});
+
+// Edit comment endpoint
+router.patch("/:postId/comment/:commentId", authenticateToken, async (req, res) => {
+  try {
+    const { postId, commentId } = req.params;
+    const { text } = req.body;
+    const userId = req.user.id;
+    
+    if (!text || text.trim() === "") {
+      return res.status(400).json({
+        success: false,
+        message: "Comment text is required"
+      });
+    }
+    
+    const post = await db.collection("posts").findOne({ _id: new ObjectId(postId) });
+    
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        message: "Post not found"
+      });
+    }
+    
+    // Find and update comment
+    const updated = await db.collection("posts").updateOne(
+      { 
+        _id: new ObjectId(postId),
+        "comments._id": new ObjectId(commentId),
+        "comments.userId": userId
+      },
+      { 
+        $set: { 
+          "comments.$.text": text.trim(),
+          "comments.$.updatedAt": new Date()
+        }
+      }
+    );
+    
+    if (updated.matchedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Comment not found or you don't have permission"
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: "Comment updated successfully"
+    });
+  } catch (error) {
+    console.error("Edit comment error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update comment"
+    });
+  }
+});
 
 
 
