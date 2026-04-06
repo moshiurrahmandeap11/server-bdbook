@@ -437,69 +437,93 @@ router.delete("/:postId/comment/:commentId", authenticateToken, async (req, res)
   }
 });
 
-// ==================== SHARE POST ====================
+// ==================== SHARE POST (FIXED) ====================
+// ==================== SHARE POST (FIXED) ====================
 router.post("/:postId/share", authenticateToken, async (req, res) => {
   try {
     const { postId } = req.params;
     const userId = req.user.id;
-    
-    if (!ObjectId.isValid(postId)) {
+
+    // ✅ FIX: Robust ObjectId validation
+    let postObjectId;
+    try {
+      // Handle both string and ObjectId inputs
+      const idString = typeof postId === 'string' ? postId.trim() : String(postId);
+      
+      if (!idString || idString.length !== 24) {
+        throw new Error('Invalid length');
+      }
+      
+      postObjectId = new ObjectId(idString);
+    } catch (e) {
+      console.error('Invalid postId format:', postId, e);
       return res.status(400).json({
         success: false,
         message: "Invalid post ID format"
       });
     }
-    
-    const post = await db.collection("posts").findOne({ _id: new ObjectId(postId) });
-    
+
+    // Get original post
+    const post = await db.collection("posts").findOne({ 
+      _id: postObjectId,
+      isActive: true 
+    });
+
     if (!post) {
       return res.status(404).json({
         success: false,
         message: "Post not found"
       });
     }
-    
-    const hasShared = post.shares.includes(userId);
-    
+
+    // Prevent duplicate share
+    const hasShared = post.shares?.includes(userId) || post.shares?.includes(String(userId));
+
     if (hasShared) {
       return res.status(400).json({
         success: false,
         message: "You have already shared this post"
       });
     }
-    
-    // Create a shared post reference
-    const sharedPost = {
-      originalPostId: postId,
-      sharedByUserId: userId,
-      sharedByUserName: (await db.collection("users").findOne({ _id: new ObjectId(userId) })).fullName,
-      sharedAt: new Date(),
-      originalPost: {
-        userId: post.userId,
-        userName: post.userName,
-        userProfilePicture: post.userProfilePicture,
-        description: post.description,
-        media: post.media
-      }
-    };
-    
-    // Add to shares array in original post
+
+    // Get current user
+    const currentUser = await db.collection("users").findOne(
+      { _id: new ObjectId(userId) },
+      { projection: { password: 0 } }
+    );
+
+    if (!currentUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    // 1️⃣ Update original post (shares count)
     await db.collection("posts").updateOne(
-      { _id: new ObjectId(postId) },
-      { 
+      { _id: postObjectId },
+      {
         $push: { shares: userId },
         $inc: { sharesCount: 1 }
       }
     );
-    
-    // Create a share post in the user's feed
-    await db.collection("posts").insertOne({
+
+    // 2️⃣ Create shared post
+    const sharedPostDoc = {
       userId: userId,
-      userName: (await db.collection("users").findOne({ _id: new ObjectId(userId) })).fullName,
-      userEmail: (await db.collection("users").findOne({ _id: new ObjectId(userId) })).email,
-      userProfilePicture: (await db.collection("users").findOne({ _id: new ObjectId(userId) })).profilePicture?.url || null,
-      isShared: true,
-      sharedData: sharedPost,
+      userName: currentUser.fullName,
+      userEmail: currentUser.email,
+      userProfilePicture: currentUser.profilePicture?.url || null,
+      isShare: true,
+      originalPost: {
+        _id: post._id.toString(), // ✅ Ensure _id is string for frontend
+        userId: post.userId,
+        userName: post.userName,
+        userProfilePicture: post.userProfilePicture,
+        description: post.description,
+        media: post.media || null,
+      },
+      description: "",
       likes: [],
       likesCount: 0,
       comments: [],
@@ -509,17 +533,37 @@ router.post("/:postId/share", authenticateToken, async (req, res) => {
       createdAt: new Date(),
       updatedAt: new Date(),
       isActive: true,
-    });
-    
+    };
+
+    const result = await db.collection("posts").insertOne(sharedPostDoc);
+
+    // 3️⃣ Notification
+    if (post.userId !== userId) {
+      await createNotification(post.userId, "post_share", {
+        postId: postId,
+        sharedPostId: result.insertedId.toString(),
+        sharerId: userId,
+        sharerName: currentUser.fullName,
+        sharerProfilePicture: currentUser.profilePicture?.url || null,
+        message: `${currentUser.fullName} shared your post`
+      });
+    }
+
     res.status(200).json({
       success: true,
-      message: "Post shared successfully"
+      message: "Post shared successfully",
+      data: {
+        _id: result.insertedId.toString(), // ✅ Return string ID
+        ...sharedPostDoc
+      }
     });
+
   } catch (error) {
     console.error("Share post error:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to share post"
+      message: "Failed to share post",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
