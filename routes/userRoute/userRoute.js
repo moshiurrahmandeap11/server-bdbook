@@ -1250,6 +1250,80 @@ router.get("/search/:query", async (req, res) => {
   }
 });
 
+// Add this to your userRoutes.js
+router.post("/send-message/:receiverId", authenticateToken, async (req, res) => {
+  try {
+    const senderId = req.user.id;
+    const { receiverId } = req.params;
+    const { message, messageType = "text", mediaUrl = null, fileName = null, fileSize = null } = req.body;
+
+    if (!message && !mediaUrl) {
+      return res.status(400).json({
+        success: false,
+        message: "Message content is required"
+      });
+    }
+
+    const newMessage = {
+      _id: new ObjectId(),
+      senderId: senderId,
+      receiverId: receiverId,
+      message: message || "",
+      messageType: messageType,
+      mediaUrl: mediaUrl,
+      fileName: fileName,
+      fileSize: fileSize,
+      isRead: false,
+      isDelivered: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    await db.collection("messages").insertOne(newMessage);
+
+    // Update conversation
+    await db.collection("conversations").updateOne(
+      {
+        $or: [
+          { userId: senderId, friendId: receiverId },
+          { userId: receiverId, friendId: senderId }
+        ]
+      },
+      {
+        $set: {
+          lastMessage: messageType === "share" ? "📱 Shared a post" : (message || (messageType === "image" ? "📷 Photo" : "📎 File")),
+          lastMessageTime: new Date(),
+          updatedAt: new Date()
+        },
+        $setOnInsert: {
+          userId: senderId,
+          friendId: receiverId,
+          createdAt: new Date()
+        }
+      },
+      { upsert: true }
+    );
+
+    // Send real-time message via socket
+    const receiverSocketId = onlineUsers.get(receiverId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("receive_message", newMessage);
+    }
+
+    res.json({
+      success: true,
+      message: "Message sent successfully",
+      data: newMessage
+    });
+  } catch (error) {
+    console.error("Send message error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to send message"
+    });
+  }
+});
+
 // ==================== LOGIN ====================
 router.post("/login", async (req, res) => {
   try {
