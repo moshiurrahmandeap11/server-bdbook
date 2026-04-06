@@ -195,6 +195,355 @@ router.get("/:postId", async (req, res) => {
   }
 });
 
+// ==================== GET POST LIKES (for modal) ====================
+router.get("/:postId/likes", authenticateToken, async (req, res) => {
+  try {
+    const { postId } = req.params;
+    
+    if (!ObjectId.isValid(postId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid post ID format"
+      });
+    }
+    
+    const post = await db.collection("posts").findOne({ _id: new ObjectId(postId) });
+    
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        message: "Post not found"
+      });
+    }
+    
+    // Get user details for each like
+    const likesWithUserInfo = await Promise.all(
+      (post.likes || []).map(async (userId) => {
+        const user = await db.collection("users").findOne(
+          { _id: new ObjectId(userId) },
+          { projection: { password: 0, email: 0 } }
+        );
+        return user ? {
+          _id: user._id,
+          name: user.fullName,
+          userName: user.userName,
+          profilePicture: user.profilePicture?.url || null
+        } : null;
+      })
+    );
+    
+    res.json({
+      success: true,
+      data: likesWithUserInfo.filter(u => u !== null)
+    });
+  } catch (error) {
+    console.error("Get likes error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch likes"
+    });
+  }
+});
+
+// ==================== SAVE POST ====================
+router.post("/:postId/save", authenticateToken, async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.user.id;
+    
+    if (!ObjectId.isValid(postId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid post ID format"
+      });
+    }
+    
+    const user = await db.collection("users").findOne({ _id: new ObjectId(userId) });
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+    
+    const savedPosts = user.savedPosts || [];
+    const isSaved = savedPosts.includes(postId);
+    
+    if (isSaved) {
+      // Unsave
+      await db.collection("users").updateOne(
+        { _id: new ObjectId(userId) },
+        { $pull: { savedPosts: postId } }
+      );
+    } else {
+      // Save
+      await db.collection("users").updateOne(
+        { _id: new ObjectId(userId) },
+        { $push: { savedPosts: postId } }
+      );
+    }
+    
+    res.json({
+      success: true,
+      message: isSaved ? "Post unsaved" : "Post saved",
+      data: { isSaved: !isSaved }
+    });
+  } catch (error) {
+    console.error("Save post error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to save post"
+    });
+  }
+});
+
+// ==================== MARK INTERESTED ====================
+router.post("/:postId/interested", authenticateToken, async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.user.id;
+    
+    if (!ObjectId.isValid(postId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid post ID format"
+      });
+    }
+    
+    const user = await db.collection("users").findOne({ _id: new ObjectId(userId) });
+    const interestedPosts = user.interestedPosts || [];
+    const isInterested = interestedPosts.includes(postId);
+    
+    if (isInterested) {
+      await db.collection("users").updateOne(
+        { _id: new ObjectId(userId) },
+        { $pull: { interestedPosts: postId } }
+      );
+    } else {
+      await db.collection("users").updateOne(
+        { _id: new ObjectId(userId) },
+        { $push: { interestedPosts: postId } }
+      );
+    }
+    
+    res.json({
+      success: true,
+      message: isInterested ? "Removed from interested" : "Marked as interested",
+      data: { isInterested: !isInterested }
+    });
+  } catch (error) {
+    console.error("Mark interested error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to mark interest"
+    });
+  }
+});
+
+// ==================== NOT INTERESTED ====================
+router.post("/:postId/not-interested", authenticateToken, async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.user.id;
+    
+    if (!ObjectId.isValid(postId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid post ID format"
+      });
+    }
+    
+    const user = await db.collection("users").findOne({ _id: new ObjectId(userId) });
+    const notInterestedPosts = user.notInterestedPosts || [];
+    const isNotInterested = notInterestedPosts.includes(postId);
+    
+    if (isNotInterested) {
+      await db.collection("users").updateOne(
+        { _id: new ObjectId(userId) },
+        { $pull: { notInterestedPosts: postId } }
+      );
+    } else {
+      await db.collection("users").updateOne(
+        { _id: new ObjectId(userId) },
+        { $push: { notInterestedPosts: postId } }
+      );
+    }
+    
+    res.json({
+      success: true,
+      message: isNotInterested ? "Removed from not interested" : "Marked as not interested",
+      data: { isNotInterested: !isNotInterested }
+    });
+  } catch (error) {
+    console.error("Mark not interested error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to mark as not interested"
+    });
+  }
+});
+
+// ==================== REPOST (without sharing to feed) ====================
+router.post("/:postId/repost", authenticateToken, async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.user.id;
+    
+    if (!ObjectId.isValid(postId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid post ID format"
+      });
+    }
+    
+    const originalPost = await db.collection("posts").findOne({ 
+      _id: new ObjectId(postId),
+      isActive: true 
+    });
+    
+    if (!originalPost) {
+      return res.status(404).json({
+        success: false,
+        message: "Post not found"
+      });
+    }
+    
+    // Check if already reposted
+    const existingRepost = await db.collection("posts").findOne({
+      userId: userId,
+      "originalPost._id": postId,
+      isShare: true
+    });
+    
+    if (existingRepost) {
+      return res.status(400).json({
+        success: false,
+        message: "You have already reposted this"
+      });
+    }
+    
+    const currentUser = await db.collection("users").findOne(
+      { _id: new ObjectId(userId) },
+      { projection: { password: 0 } }
+    );
+    
+    // Create repost (share post to profile)
+    const repostDoc = {
+      userId: userId,
+      userName: currentUser.fullName,
+      userEmail: currentUser.email,
+      userProfilePicture: currentUser.profilePicture?.url || null,
+      isShare: true,
+      isRepost: true, // Mark as repost
+      originalPost: {
+        _id: originalPost._id.toString(),
+        userId: originalPost.userId,
+        userName: originalPost.userName,
+        userProfilePicture: originalPost.userProfilePicture,
+        description: originalPost.description,
+        media: originalPost.media || null,
+      },
+      description: "",
+      likes: [],
+      likesCount: 0,
+      comments: [],
+      commentsCount: 0,
+      shares: [],
+      sharesCount: 0,
+      reposts: [],
+      repostsCount: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      isActive: true,
+    };
+    
+    const result = await db.collection("posts").insertOne(repostDoc);
+    
+    // Update original post repost count
+    await db.collection("posts").updateOne(
+      { _id: new ObjectId(postId) },
+      {
+        $push: { reposts: userId },
+        $inc: { repostsCount: 1 }
+      }
+    );
+    
+    // Create notification
+    if (originalPost.userId !== userId) {
+      await createNotification(originalPost.userId, 'post_repost', {
+        postId: postId,
+        repostId: result.insertedId.toString(),
+        reposterId: userId,
+        reposterName: currentUser.fullName,
+        reposterProfilePicture: currentUser.profilePicture?.url || null,
+        message: `${currentUser.fullName} reposted your post`
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: "Post reposted successfully",
+      data: { repostId: result.insertedId.toString() }
+    });
+  } catch (error) {
+    console.error("Repost error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to repost"
+    });
+  }
+});
+
+// ==================== GET REPOSTS ====================
+router.get("/:postId/reposts", authenticateToken, async (req, res) => {
+  try {
+    const { postId } = req.params;
+    
+    if (!ObjectId.isValid(postId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid post ID format"
+      });
+    }
+    
+    const reposts = await db.collection("posts")
+      .find({ 
+        "originalPost._id": postId,
+        isShare: true,
+        isActive: true 
+      })
+      .sort({ createdAt: -1 })
+      .toArray();
+    
+    const repostUsers = await Promise.all(
+      reposts.map(async (repost) => {
+        const user = await db.collection("users").findOne(
+          { _id: new ObjectId(repost.userId) },
+          { projection: { fullName: 1, profilePicture: 1 } }
+        );
+        return {
+          userId: repost.userId,
+          userName: user?.fullName || repost.userName,
+          userProfilePicture: user?.profilePicture?.url || repost.userProfilePicture,
+          repostedAt: repost.createdAt
+        };
+      })
+    );
+    
+    res.json({
+      success: true,
+      data: repostUsers
+    });
+  } catch (error) {
+    console.error("Get reposts error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch reposts"
+    });
+  }
+});
+
 // ==================== GET USER POSTS ====================
 router.get("/user/:userId", async (req, res) => {
   try {
@@ -437,7 +786,6 @@ router.delete("/:postId/comment/:commentId", authenticateToken, async (req, res)
   }
 });
 
-// ==================== SHARE POST (FIXED) ====================
 // ==================== SHARE POST (FIXED) ====================
 router.post("/:postId/share", authenticateToken, async (req, res) => {
   try {

@@ -769,6 +769,188 @@ router.get("/friends", authenticateToken, async (req, res) => {
   }
 });
 
+// ==================== GET FRIENDS LIST ====================
+router.get("/friends/:userId", authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user ID format"
+      });
+    }
+    
+    const friends = await db.collection("friends")
+      .find({ userId: userId })
+      .toArray();
+    
+    // Fetch full user details for each friend
+    const friendsWithDetails = await Promise.all(
+      friends.map(async (friend) => {
+        const user = await db.collection("users").findOne(
+          { _id: new ObjectId(friend.friendId) },
+          { projection: { password: 0, email: 0 } }
+        );
+        return {
+          _id: friend.friendId,
+          fullName: user?.fullName || friend.friendName,
+          profilePicture: user?.profilePicture || { url: friend.friendProfilePicture },
+          email: user?.email || "",
+          friendSince: friend.createdAt
+        };
+      })
+    );
+    
+    res.json({
+      success: true,
+      data: friendsWithDetails
+    });
+  } catch (error) {
+    console.error("Get friends error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get friends list"
+    });
+  }
+})
+
+// ==================== GET FRIENDS COUNT ====================
+router.get("/friends/count/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user ID format"
+      });
+    }
+    
+    const count = await db.collection("friends").countDocuments({ userId: userId });
+    res.json({ success: true, count });
+  } catch (error) {
+    console.error("Get friends count error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get friends count"
+    });
+  }
+});
+
+// ==================== GET FOLLOWERS (FRIEND REQUESTS) ====================
+router.get("/followers/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user ID format"
+      });
+    }
+    
+    const requests = await db.collection("friendRequests")
+      .find({ receiverId: userId })
+      .sort({ createdAt: -1 })
+      .toArray();
+    
+    // Fetch user details for each follower
+    const followersWithDetails = await Promise.all(
+      requests.map(async (request) => {
+        const user = await db.collection("users").findOne(
+          { _id: new ObjectId(request.senderId) },
+          { projection: { password: 0, email: 0 } }
+        );
+        return {
+          _id: request.senderId,
+          fullName: user?.fullName || request.senderName,
+          profilePicture: user?.profilePicture || { url: request.senderProfilePicture },
+          email: user?.email || "",
+          status: request.status,
+          requestId: request._id,
+          requestedAt: request.createdAt
+        };
+      })
+    );
+    
+    res.json({
+      success: true,
+      data: followersWithDetails
+    });
+  } catch (error) {
+    console.error("Get followers error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get followers list"
+    });
+  }
+});
+
+// ==================== GET FOLLOWERS COUNT ====================
+router.get("/followers/count/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user ID format"
+      });
+    }
+    
+    const count = await db.collection("friendRequests").countDocuments({ 
+      receiverId: userId,
+      status: "pending"
+    });
+    res.json({ success: true, count });
+  } catch (error) {
+    console.error("Get followers count error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get followers count"
+    });
+  }
+});
+
+// ==================== GET SAVED POSTS ====================
+router.get("/saved-posts/:userId", authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user ID format"
+      });
+    }
+    
+    const user = await db.collection("users").findOne(
+      { _id: new ObjectId(userId) },
+      { projection: { savedPosts: 1 } }
+    );
+    
+    if (!user || !user.savedPosts || user.savedPosts.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+    
+    const savedPostIds = user.savedPosts.filter(id => ObjectId.isValid(id)).map(id => new ObjectId(id));
+    
+    const savedPosts = await db.collection("posts")
+      .find({ _id: { $in: savedPostIds }, isActive: true })
+      .sort({ createdAt: -1 })
+      .toArray();
+    
+    res.json({ success: true, data: savedPosts });
+  } catch (error) {
+    console.error("Get saved posts error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get saved posts"
+    });
+  }
+});
+
 // Check friend status between two users
 router.get("/friend-status/:userId", authenticateToken, async (req, res) => {
   try {
