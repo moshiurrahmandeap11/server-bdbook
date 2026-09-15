@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import { Router } from "express";
 import jwt from "jsonwebtoken";
+import multer from "multer";
 import { ObjectId } from "mongodb";
 import { db } from "../../database/db.js";
 import {
@@ -10,6 +11,7 @@ import {
   profilePictureUpload
 } from "../../middleware/upload.js";
 import { createNotification } from "../notificationRoute/notificationRoutes.js";
+import { getSocketManager } from "../../utils/socket.js";
 
 const router = Router();
 
@@ -1144,12 +1146,17 @@ router.post("/send-message/:receiverId", authenticateToken, async (req, res) => 
       fileName: fileName,
       fileSize: fileSize,
       isRead: false,
-      isDelivered: false,
+      isDelivered: true,
       createdAt: new Date(),
       updatedAt: new Date()
     };
 
     await db.collection("messages").insertOne(newMessage);
+
+    // Format lastMessage preview text
+    const lastMessagePreview = messageType === "share"
+      ? "📱 Shared a post"
+      : (message || (messageType === "image" ? "📷 Photo" : messageType === "video" ? "📹 Video" : "📎 File"));
 
     // Update conversation last message
     await db.collection("conversations").updateOne(
@@ -1161,7 +1168,7 @@ router.post("/send-message/:receiverId", authenticateToken, async (req, res) => 
       },
       {
         $set: {
-          lastMessage: message || (messageType === "image" ? "📷 Photo" : "📎 File"),
+          lastMessage: lastMessagePreview,
           lastMessageTime: new Date(),
           updatedAt: new Date()
         },
@@ -1173,6 +1180,18 @@ router.post("/send-message/:receiverId", authenticateToken, async (req, res) => 
       },
       { upsert: true }
     );
+
+    // Send real-time message via socket if receiver is online
+    try {
+      const socketManager = getSocketManager();
+      const receiverSocketId = socketManager.onlineUsers?.get(receiverId);
+      if (receiverSocketId && socketManager.io) {
+        socketManager.io.to(receiverSocketId).emit("receive_message", newMessage);
+      }
+    } catch (socketErr) {
+      // Socket emission is non-blocking for HTTP response
+      console.warn("Socket notification warning:", socketErr.message);
+    }
 
     res.json({
       success: true,
@@ -1432,79 +1451,6 @@ router.get("/search/:query", async (req, res) => {
   }
 });
 
-// Add this to your userRoutes.js
-router.post("/send-message/:receiverId", authenticateToken, async (req, res) => {
-  try {
-    const senderId = req.user.id;
-    const { receiverId } = req.params;
-    const { message, messageType = "text", mediaUrl = null, fileName = null, fileSize = null } = req.body;
-
-    if (!message && !mediaUrl) {
-      return res.status(400).json({
-        success: false,
-        message: "Message content is required"
-      });
-    }
-
-    const newMessage = {
-      _id: new ObjectId(),
-      senderId: senderId,
-      receiverId: receiverId,
-      message: message || "",
-      messageType: messageType,
-      mediaUrl: mediaUrl,
-      fileName: fileName,
-      fileSize: fileSize,
-      isRead: false,
-      isDelivered: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-
-    await db.collection("messages").insertOne(newMessage);
-
-    // Update conversation
-    await db.collection("conversations").updateOne(
-      {
-        $or: [
-          { userId: senderId, friendId: receiverId },
-          { userId: receiverId, friendId: senderId }
-        ]
-      },
-      {
-        $set: {
-          lastMessage: messageType === "share" ? "📱 Shared a post" : (message || (messageType === "image" ? "📷 Photo" : "📎 File")),
-          lastMessageTime: new Date(),
-          updatedAt: new Date()
-        },
-        $setOnInsert: {
-          userId: senderId,
-          friendId: receiverId,
-          createdAt: new Date()
-        }
-      },
-      { upsert: true }
-    );
-
-    // Send real-time message via socket
-    const receiverSocketId = onlineUsers.get(receiverId);
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit("receive_message", newMessage);
-    }
-
-    res.json({
-      success: true,
-      message: "Message sent successfully",
-      data: newMessage
-    });
-  } catch (error) {
-    console.error("Send message error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to send message"
-    });
-  }
-});
 
 // ==================== LOGIN ====================
 router.post("/login", async (req, res) => {
