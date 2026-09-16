@@ -1,0 +1,311 @@
+import bcrypt from "bcryptjs";
+import status from "http-status";
+import AppError from "../../errorHelpers/AppError.js";
+import { deleteFromCloudinary, getOptimizedUrl } from "../../lib/cloudinary.js";
+import { prisma } from "../../lib/prisma.js";
+const formatUserProfile = (user) => {
+    return {
+        id: user.id,
+        _id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+        gender: user.gender,
+        dob: user.dob,
+        profilePicUrl: user.profilePicUrl,
+        profilePicPublicId: user.profilePicPublicId,
+        profilePicOptimizedUrl: user.profilePicOptimizedUrl,
+        profilePicture: user.profilePicUrl
+            ? {
+                url: user.profilePicUrl,
+                publicId: user.profilePicPublicId,
+                optimizedUrl: user.profilePicOptimizedUrl,
+            }
+            : null,
+        coverPhotoUrl: user.coverPhotoUrl,
+        coverPhotoPublicId: user.coverPhotoPublicId,
+        coverPhotoOptimizedUrl: user.coverPhotoOptimizedUrl,
+        coverPhoto: user.coverPhotoUrl
+            ? {
+                url: user.coverPhotoUrl,
+                publicId: user.coverPhotoPublicId,
+                optimizedUrl: user.coverPhotoOptimizedUrl,
+            }
+            : null,
+        isVerified: user.isVerified,
+        isActive: user.isActive,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+    };
+};
+const getMe = async (userId) => {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+    });
+    if (!user) {
+        throw new AppError(status.NOT_FOUND, "User not found");
+    }
+    return formatUserProfile(user);
+};
+const getAllUsers = async (filters, pagination) => {
+    const page = Number(pagination.page) || 1;
+    const limit = Number(pagination.limit) || 10;
+    const skip = (page - 1) * limit;
+    const whereClause = {
+        isActive: true,
+    };
+    if (filters.search) {
+        whereClause.OR = [
+            { fullName: { contains: filters.search, mode: "insensitive" } },
+            { email: { contains: filters.search, mode: "insensitive" } },
+        ];
+    }
+    const [users, total] = await Promise.all([
+        prisma.user.findMany({
+            where: whereClause,
+            skip,
+            take: limit,
+            orderBy: { createdAt: "desc" },
+        }),
+        prisma.user.count({ where: whereClause }),
+    ]);
+    return {
+        meta: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit),
+        },
+        data: users.map(formatUserProfile),
+    };
+};
+const getUserById = async (id) => {
+    const user = await prisma.user.findUnique({
+        where: { id },
+    });
+    if (!user) {
+        throw new AppError(status.NOT_FOUND, "User not found");
+    }
+    return formatUserProfile(user);
+};
+const getUserByEmail = async (email) => {
+    const user = await prisma.user.findUnique({
+        where: { email: email.toLowerCase().trim() },
+    });
+    if (!user) {
+        throw new AppError(status.NOT_FOUND, "User not found");
+    }
+    return formatUserProfile(user);
+};
+const searchUsers = async (query, limit = 20) => {
+    if (!query || query.trim().length === 0) {
+        return [];
+    }
+    const users = await prisma.user.findMany({
+        where: {
+            isActive: true,
+            OR: [
+                { fullName: { contains: query.trim(), mode: "insensitive" } },
+                { email: { contains: query.trim(), mode: "insensitive" } },
+            ],
+        },
+        take: limit,
+        orderBy: { createdAt: "desc" },
+    });
+    return users.map(formatUserProfile);
+};
+const updateUser = async (currentUserId, targetUserId, currentUserRole, payload) => {
+    if (currentUserId !== targetUserId && currentUserRole !== "admin") {
+        throw new AppError(status.FORBIDDEN, "You can only update your own profile");
+    }
+    const user = await prisma.user.findUnique({
+        where: { id: targetUserId },
+    });
+    if (!user) {
+        throw new AppError(status.NOT_FOUND, "User not found");
+    }
+    const updatedUser = await prisma.user.update({
+        where: { id: targetUserId },
+        data: {
+            fullName: payload.fullName?.trim() || undefined,
+            gender: payload.gender || undefined,
+            dob: payload.dob ? new Date(payload.dob) : undefined,
+        },
+    });
+    return formatUserProfile(updatedUser);
+};
+const uploadProfilePicture = async (userId, file) => {
+    if (!file) {
+        throw new AppError(status.BAD_REQUEST, "No file uploaded");
+    }
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+    });
+    if (!user) {
+        throw new AppError(status.NOT_FOUND, "User not found");
+    }
+    if (user.profilePicPublicId) {
+        try {
+            await deleteFromCloudinary(user.profilePicPublicId, "image");
+        }
+        catch {
+            // Continue even if delete fails
+        }
+    }
+    const url = file.path;
+    const publicId = file.filename;
+    const optimizedUrl = getOptimizedUrl(publicId, {
+        width: 200,
+        height: 200,
+        crop: "fill",
+    });
+    const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+            profilePicUrl: url,
+            profilePicPublicId: publicId,
+            profilePicOptimizedUrl: optimizedUrl,
+        },
+    });
+    return {
+        url: updatedUser.profilePicUrl,
+        publicId: updatedUser.profilePicPublicId,
+        optimizedUrl: updatedUser.profilePicOptimizedUrl,
+        uploadedAt: updatedUser.updatedAt,
+    };
+};
+const removeProfilePicture = async (userId) => {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+    });
+    if (!user || !user.profilePicPublicId) {
+        throw new AppError(status.NOT_FOUND, "No profile picture found");
+    }
+    await deleteFromCloudinary(user.profilePicPublicId, "image");
+    await prisma.user.update({
+        where: { id: userId },
+        data: {
+            profilePicUrl: null,
+            profilePicPublicId: null,
+            profilePicOptimizedUrl: null,
+        },
+    });
+};
+const uploadCoverPhoto = async (userId, file) => {
+    if (!file) {
+        throw new AppError(status.BAD_REQUEST, "No file uploaded");
+    }
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+    });
+    if (!user) {
+        throw new AppError(status.NOT_FOUND, "User not found");
+    }
+    if (user.coverPhotoPublicId) {
+        try {
+            await deleteFromCloudinary(user.coverPhotoPublicId, "image");
+        }
+        catch {
+            // Continue even if delete fails
+        }
+    }
+    const url = file.path;
+    const publicId = file.filename;
+    const optimizedUrl = getOptimizedUrl(publicId, {
+        width: 1200,
+        height: 400,
+        crop: "fill",
+    });
+    const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+            coverPhotoUrl: url,
+            coverPhotoPublicId: publicId,
+            coverPhotoOptimizedUrl: optimizedUrl,
+        },
+    });
+    return {
+        url: updatedUser.coverPhotoUrl,
+        publicId: updatedUser.coverPhotoPublicId,
+        optimizedUrl: updatedUser.coverPhotoOptimizedUrl,
+        uploadedAt: updatedUser.updatedAt,
+    };
+};
+const removeCoverPhoto = async (userId) => {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+    });
+    if (!user || !user.coverPhotoPublicId) {
+        throw new AppError(status.NOT_FOUND, "No cover photo found");
+    }
+    await deleteFromCloudinary(user.coverPhotoPublicId, "image");
+    await prisma.user.update({
+        where: { id: userId },
+        data: {
+            coverPhotoUrl: null,
+            coverPhotoPublicId: null,
+            coverPhotoOptimizedUrl: null,
+        },
+    });
+};
+const changePassword = async (userId, payload) => {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+    });
+    if (!user) {
+        throw new AppError(status.NOT_FOUND, "User not found");
+    }
+    const isMatch = await bcrypt.compare(payload.currentPassword, user.password);
+    if (!isMatch) {
+        throw new AppError(status.UNAUTHORIZED, "Current password is incorrect");
+    }
+    const hashedPassword = await bcrypt.hash(payload.newPassword, 10);
+    await prisma.user.update({
+        where: { id: userId },
+        data: { password: hashedPassword },
+    });
+};
+const deleteUser = async (currentUserId, targetUserId, currentUserRole) => {
+    if (currentUserId !== targetUserId && currentUserRole !== "admin") {
+        throw new AppError(status.FORBIDDEN, "You can only delete your own account");
+    }
+    const user = await prisma.user.findUnique({
+        where: { id: targetUserId },
+    });
+    if (!user) {
+        throw new AppError(status.NOT_FOUND, "User not found");
+    }
+    if (user.profilePicPublicId) {
+        try {
+            await deleteFromCloudinary(user.profilePicPublicId, "image");
+        }
+        catch {
+            // Continue
+        }
+    }
+    if (user.coverPhotoPublicId) {
+        try {
+            await deleteFromCloudinary(user.coverPhotoPublicId, "image");
+        }
+        catch {
+            // Continue
+        }
+    }
+    await prisma.user.delete({
+        where: { id: targetUserId },
+    });
+};
+export const userService = {
+    getMe,
+    getAllUsers,
+    getUserById,
+    getUserByEmail,
+    searchUsers,
+    updateUser,
+    uploadProfilePicture,
+    removeProfilePicture,
+    uploadCoverPhoto,
+    removeCoverPhoto,
+    changePassword,
+    deleteUser,
+};
