@@ -80,3 +80,4 @@ export interface ISearchUserParams {
 // Step 3: refactor(user): add slugified fullName matching to getUserByUsername
 // Step 4: refactor(user): enhance getUserById with fallback lookup by username
 // Step 5: refactor(user): update searchUsers query to search username alongside fullName
+// Step 6: feat(auth): implement auto-generation of unique username on manual signup
