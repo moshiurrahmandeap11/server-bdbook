@@ -45,6 +45,18 @@ const getUserById = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getUserByUsername = catchAsync(async (req: Request, res: Response) => {
+  const { username } = req.params;
+  const result = await userService.getUserByUsername(username);
+
+  sendResponse(res, {
+    httpStatusCode: status.OK,
+    success: true,
+    message: "User fetched successfully",
+    data: result,
+  });
+});
+
 const getUserByEmail = catchAsync(async (req: Request, res: Response) => {
   const { email } = req.params;
   const result = await userService.getUserByEmail(email);
@@ -171,6 +183,7 @@ export const userController = {
   getMe,
   getAllUsers,
   getUserById,
+  getUserByUsername,
   getUserByEmail,
   searchUsers,
   updateUser,
