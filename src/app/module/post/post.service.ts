@@ -121,6 +121,7 @@ const postInclude = {
   user: {
     select: {
       id: true,
+      username: true,
       fullName: true,
       email: true,
       profilePicUrl: true,
@@ -141,6 +142,7 @@ const postInclude = {
       user: {
         select: {
           id: true,
+          username: true,
           fullName: true,
           profilePicUrl: true,
         },
@@ -155,6 +157,7 @@ const postInclude = {
       user: {
         select: {
           id: true,
+          username: true,
           fullName: true,
           profilePicUrl: true,
         },
