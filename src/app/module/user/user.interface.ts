@@ -88,3 +88,4 @@ export interface ISearchUserParams {
 // Step 11: refactor(user): enhance searchUsers query limit handling
 // Step 12: chore(prisma): verify schema synchronization with Neon database
 // Step 13: chore(server): verify /api/v1 router mounting for users and auth
+// Step 14: chore(server): verify socket.io server configuration on port 6969
