@@ -4,6 +4,7 @@ export interface ISignupPayload {
   email: string;
   password: string;
   fullName: string;
+  username?: string;
   gender?: Gender;
   dob?: string | Date;
 }
@@ -22,6 +23,7 @@ export interface IGoogleAuthPayload {
 export interface IAuthUserResponse {
   id: string;
   _id?: string;
+  username: string;
   fullName: string;
   email: string;
   role: UserRole;
