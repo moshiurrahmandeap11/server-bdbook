@@ -84,3 +84,4 @@ export interface ISearchUserParams {
 // Step 7: feat(auth): implement unique username generation on Google OAuth login
 // Step 8: fix(auth): include username in getMe response payload
 // Step 9: refactor(auth): ensure username is included in login response user object
+// Step 10: refactor(user): clean up formatUserProfile null checks
