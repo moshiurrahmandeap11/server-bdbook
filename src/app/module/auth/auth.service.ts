@@ -154,7 +154,8 @@ const googleAuth = async (payload: IGoogleAuthPayload): Promise<ILoginResult> =>
     throw new AppError(status.BAD_REQUEST, "Either idToken or code must be provided");
   }
 
-    throw new Error("WIP");
+    // Normalized email and profile picture
+  throw new Error("WIP");
 };
 
 export const authService = {
