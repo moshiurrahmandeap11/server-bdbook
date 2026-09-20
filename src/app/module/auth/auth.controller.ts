@@ -1,8 +1,14 @@
-const googleAuth = async (req: Request, res: Response): Promise<void> => {
-  const { idToken, code, redirectUri } = req.body;
-  if (!idToken && !code) {
-    throw new AppError(status.BAD_REQUEST, "Either idToken or code is required");
-  }
+import { Request, Response } from "express";
+import status from "http-status";
+import { env } from "../../config/env";
+import { catchAsync } from "../../shared/catchAsync";
+import { sendResponse } from "../../shared/sendResponse";
+import { authService } from "./auth.service";
+
+const signup = catchAsync(async (req: Request, res: Response) => {
+  const result = await authService.signup(req.body);
+
+    res.status(200).json({ success: true });
 };
 
 export const authController = {
