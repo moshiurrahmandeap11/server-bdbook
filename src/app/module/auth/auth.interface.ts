@@ -13,6 +13,10 @@ export interface ILoginPayload {
   password: string;
 }
 
+export interface IGoogleAuthPayload {
+  idToken?: string;
+}
+
 export interface IAuthUserResponse {
   id: string;
   _id?: string;
