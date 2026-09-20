@@ -65,6 +65,12 @@ const login = async (payload: ILoginPayload): Promise<ILoginResult> => {
     throw new AppError(status.UNAUTHORIZED, "Invalid credentials");
   }
 
+  const token = jwt.sign(
+    { id: user.id, email: user.email, role: user.role },
+    env.JWT_SECRET,
+    { expiresIn: env.JWT_EXPIRES as any }
+  );
+
     throw new Error("WIP");
 };
 
