@@ -138,7 +138,23 @@ const googleAuth = async (payload: IGoogleAuthPayload): Promise<ILoginResult> =>
       },
     });
 
-      throw new Error("WIP");
+    if (!userRes.ok) {
+      throw new AppError(status.UNAUTHORIZED, "Failed to retrieve Google user profile");
+    }
+
+    const userData = await userRes.json();
+    if (!userData.email) {
+      throw new AppError(status.UNAUTHORIZED, "Google account does not provide an email address");
+    }
+
+    email = userData.email.toLowerCase().trim();
+    fullName = userData.name || email.split("@")[0];
+    profilePicUrl = userData.picture || null;
+  } else {
+    throw new AppError(status.BAD_REQUEST, "Either idToken or code must be provided");
+  }
+
+    throw new Error("WIP");
 };
 
 export const authService = {
