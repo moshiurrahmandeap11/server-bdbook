@@ -108,8 +108,30 @@ const googleAuth = async (payload: IGoogleAuthPayload): Promise<ILoginResult> =>
     email = tokenInfo.email.toLowerCase().trim();
     fullName = tokenInfo.name || tokenInfo.given_name || email.split("@")[0];
     profilePicUrl = tokenInfo.picture || null;
-  }
-  throw new Error("WIP");
+  } else if (payload.code) {
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        code: payload.code,
+        client_id: env.GOOGLE_CLIENT_ID,
+        client_secret: env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: payload.redirectUri || "http://localhost:3001/auth/callback/google",
+        grant_type: "authorization_code",
+      }).toString(),
+    });
+
+    if (!tokenRes.ok) {
+      const errorData = await tokenRes.json().catch(() => ({}));
+      throw new AppError(
+        status.UNAUTHORIZED,
+        errorData.error_description || "Failed to exchange Google authorization code"
+      );
+    }
+
+      throw new Error("WIP");
 };
 
 export const authService = {
