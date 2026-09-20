@@ -42,6 +42,9 @@ const loadEnvVariables = (): IEnvConfig => {
     ALLOWED_ORIGINS: allowedOrigins,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || "",
+    ACCESS_TOKEN_EXPIRES_IN: process.env.ACCESS_TOKEN_EXPIRES_IN || "30s",
+    REFRESH_TOKEN_EXPIRES_IN: process.env.REFRESH_TOKEN_EXPIRES_IN || "7d",
+    JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || "bdbook_refresh_secret_secure",
   };
 };
 

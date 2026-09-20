@@ -34,8 +34,15 @@ export interface IAuthUserResponse {
 }
 
 export interface ILoginResult {
-  token: string;
+  accessToken: string;
+  refreshToken: string;
+  token?: string;
   user: IAuthUserResponse;
+}
+
+export interface IRefreshTokenResult {
+  accessToken: string;
+  refreshToken: string;
 }
 
 export interface ISignupResult {

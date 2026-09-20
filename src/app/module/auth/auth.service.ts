@@ -8,9 +8,11 @@ import {
   IAuthUserResponse,
   ILoginPayload,
   ILoginResult,
+  IRefreshTokenResult,
   ISignupPayload,
   ISignupResult,
 } from "./auth.interface";
+import { tokenUtils } from "../../utils/token";
 
 const signup = async (payload: ISignupPayload): Promise<ISignupResult> => {
   const emailLower = payload.email.toLowerCase().trim();
@@ -25,11 +27,12 @@ const signup = async (payload: ISignupPayload): Promise<ISignupResult> => {
 
   const hashedPassword = await bcrypt.hash(payload.password, 10);
 
+  const fullName = (payload.fullName || (payload as any).name || "").trim();
   const newUser = await prisma.user.create({
     data: {
       email: emailLower,
       password: hashedPassword,
-      fullName: payload.fullName.trim(),
+      fullName,
       gender: payload.gender,
       dob: payload.dob ? new Date(payload.dob) : null,
       role: "user",
@@ -39,10 +42,33 @@ const signup = async (payload: ISignupPayload): Promise<ISignupResult> => {
       id: true,
       email: true,
       fullName: true,
+      role: true,
+      gender: true,
+      dob: true,
+      profilePicUrl: true,
     },
   });
 
-  return newUser;
+  const jwtPayload = { id: newUser.id, email: newUser.email, role: newUser.role };
+  const accessToken = tokenUtils.getAccessToken(jwtPayload);
+  const refreshToken = tokenUtils.getRefreshToken(jwtPayload);
+
+  return {
+    accessToken,
+    refreshToken,
+    token: accessToken,
+    user: {
+      id: newUser.id,
+      _id: newUser.id,
+      fullName: newUser.fullName,
+      email: newUser.email,
+      role: newUser.role,
+      gender: newUser.gender,
+      dob: newUser.dob,
+      profilePicUrl: newUser.profilePicUrl,
+      profilePicture: newUser.profilePicUrl ? { url: newUser.profilePicUrl } : null,
+    },
+  };
 };
 
 const login = async (payload: ILoginPayload): Promise<ILoginResult> => {
@@ -65,11 +91,9 @@ const login = async (payload: ILoginPayload): Promise<ILoginResult> => {
     throw new AppError(status.UNAUTHORIZED, "Invalid credentials");
   }
 
-  const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
-    env.JWT_SECRET,
-    { expiresIn: env.JWT_EXPIRES as any }
-  );
+  const jwtPayload = { id: user.id, email: user.email, role: user.role };
+  const accessToken = tokenUtils.getAccessToken(jwtPayload);
+  const refreshToken = tokenUtils.getRefreshToken(jwtPayload);
 
   const userResponse: IAuthUserResponse = {
     id: user.id,
@@ -84,7 +108,9 @@ const login = async (payload: ILoginPayload): Promise<ILoginResult> => {
   };
 
   return {
-    token,
+    accessToken,
+    refreshToken,
+    token: accessToken,
     user: userResponse,
   };
 };
@@ -186,11 +212,9 @@ const googleAuth = async (payload: IGoogleAuthPayload): Promise<ILoginResult> =>
     }
   }
 
-  const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
-    env.JWT_SECRET,
-    { expiresIn: env.JWT_EXPIRES as any }
-  );
+  const jwtPayload = { id: user.id, email: user.email, role: user.role };
+  const accessToken = tokenUtils.getAccessToken(jwtPayload);
+  const refreshToken = tokenUtils.getRefreshToken(jwtPayload);
 
   const userResponse: IAuthUserResponse = {
     id: user.id,
@@ -205,8 +229,66 @@ const googleAuth = async (payload: IGoogleAuthPayload): Promise<ILoginResult> =>
   };
 
   return {
-    token,
+    accessToken,
+    refreshToken,
+    token: accessToken,
     user: userResponse,
+  };
+};
+
+const getNewToken = async (refreshToken: string): Promise<IRefreshTokenResult> => {
+  if (!refreshToken) {
+    throw new AppError(status.UNAUTHORIZED, "Refresh token is missing");
+  }
+
+  let decoded: any;
+  try {
+    decoded = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET);
+  } catch {
+    throw new AppError(status.UNAUTHORIZED, "Invalid or expired refresh token");
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: decoded.id },
+  });
+
+  if (!user) {
+    throw new AppError(status.UNAUTHORIZED, "User not found");
+  }
+
+  if (!user.isActive) {
+    throw new AppError(status.FORBIDDEN, "Your account has been deactivated");
+  }
+
+  const jwtPayload = { id: user.id, email: user.email, role: user.role };
+  const newAccessToken = tokenUtils.getAccessToken(jwtPayload);
+  const newRefreshToken = tokenUtils.getRefreshToken(jwtPayload);
+
+  return {
+    accessToken: newAccessToken,
+    refreshToken: newRefreshToken,
+  };
+};
+
+const getMe = async (userId: string): Promise<IAuthUserResponse> => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new AppError(status.NOT_FOUND, "User not found");
+  }
+
+  return {
+    id: user.id,
+    _id: user.id,
+    fullName: user.fullName,
+    email: user.email,
+    role: user.role,
+    gender: user.gender,
+    dob: user.dob,
+    profilePicUrl: user.profilePicUrl,
+    profilePicture: user.profilePicUrl ? { url: user.profilePicUrl } : null,
   };
 };
 
@@ -214,4 +296,6 @@ export const authService = {
   signup,
   login,
   googleAuth,
+  getNewToken,
+  getMe,
 };

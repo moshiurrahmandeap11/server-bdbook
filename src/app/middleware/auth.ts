@@ -9,6 +9,7 @@ export const auth = (...requiredRoles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
     const token =
+      req.cookies?.accessToken ||
       req.cookies?.token ||
       (authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : authHeader);
 
@@ -34,10 +35,9 @@ export const auth = (...requiredRoles: string[]) => {
       if (error instanceof AppError) {
         throw error;
       }
-      throw new AppError(status.FORBIDDEN, "Invalid or expired token");
+      throw new AppError(status.UNAUTHORIZED, "Invalid or expired token");
     }
   };
 };
 
 export const authenticateToken = auth();
-

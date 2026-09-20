@@ -1,52 +1,53 @@
 import { Request, Response } from "express";
 import status from "http-status";
-import { env } from "../../config/env";
+import AppError from "../../errorHelpers/AppError";
 import { catchAsync } from "../../shared/catchAsync";
 import { sendResponse } from "../../shared/sendResponse";
+import { tokenUtils } from "../../utils/token";
 import { authService } from "./auth.service";
 
 const signup = catchAsync(async (req: Request, res: Response) => {
   const result = await authService.signup(req.body);
 
+  tokenUtils.setAccessTokenCookie(res, result.accessToken, req);
+  tokenUtils.setRefreshTokenCookie(res, result.refreshToken, req);
+
   sendResponse(res, {
     httpStatusCode: status.CREATED,
     success: true,
     message: "Account created successfully",
-    data: result,
+    token: result.accessToken,
+    user: result.user,
+    data: {
+      accessToken: result.accessToken,
+      token: result.accessToken,
+      user: result.user,
+    },
   });
 });
 
 const login = catchAsync(async (req: Request, res: Response) => {
   const result = await authService.login(req.body);
 
-  res.cookie("token", result.token, {
-    httpOnly: true,
-    secure: env.NODE_ENV === "production",
-    sameSite: env.NODE_ENV === "production" ? "none" : "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    path: "/",
-  });
+  tokenUtils.setAccessTokenCookie(res, result.accessToken, req);
+  tokenUtils.setRefreshTokenCookie(res, result.refreshToken, req);
 
   sendResponse(res, {
     httpStatusCode: status.OK,
     success: true,
     message: "Login successful",
-    token: result.token,
+    token: result.accessToken,
     user: result.user,
     data: {
-      token: result.token,
+      accessToken: result.accessToken,
+      token: result.accessToken,
       user: result.user,
     },
   });
 });
 
 const logout = catchAsync(async (req: Request, res: Response) => {
-  res.clearCookie("token", {
-    httpOnly: true,
-    secure: env.NODE_ENV === "production",
-    sameSite: env.NODE_ENV === "production" ? "none" : "lax",
-    path: "/",
-  });
+  tokenUtils.clearAuthCookies(res, req);
 
   sendResponse(res, {
     httpStatusCode: status.OK,
@@ -58,24 +59,53 @@ const logout = catchAsync(async (req: Request, res: Response) => {
 const googleAuth = catchAsync(async (req: Request, res: Response) => {
   const result = await authService.googleAuth(req.body);
 
-  res.cookie("token", result.token, {
-    httpOnly: true,
-    secure: env.NODE_ENV === "production",
-    sameSite: env.NODE_ENV === "production" ? "none" : "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    path: "/",
-  });
+  tokenUtils.setAccessTokenCookie(res, result.accessToken, req);
+  tokenUtils.setRefreshTokenCookie(res, result.refreshToken, req);
 
   sendResponse(res, {
     httpStatusCode: status.OK,
     success: true,
     message: "Google login successful",
-    token: result.token,
+    token: result.accessToken,
     user: result.user,
     data: {
-      token: result.token,
+      accessToken: result.accessToken,
+      token: result.accessToken,
       user: result.user,
     },
+  });
+});
+
+const refreshToken = catchAsync(async (req: Request, res: Response) => {
+  const incomingRefreshToken = req.cookies?.refreshToken;
+  const result = await authService.getNewToken(incomingRefreshToken);
+
+  tokenUtils.setAccessTokenCookie(res, result.accessToken, req);
+  tokenUtils.setRefreshTokenCookie(res, result.refreshToken, req);
+
+  sendResponse(res, {
+    httpStatusCode: status.OK,
+    success: true,
+    message: "Access token refreshed successfully",
+    data: {
+      accessToken: result.accessToken,
+    },
+  });
+});
+
+const getMe = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    throw new AppError(status.UNAUTHORIZED, "Unauthorized access");
+  }
+
+  const result = await authService.getMe(userId);
+
+  sendResponse(res, {
+    httpStatusCode: status.OK,
+    success: true,
+    message: "User profile fetched successfully",
+    data: result,
   });
 });
 
@@ -84,5 +114,6 @@ export const authController = {
   login,
   logout,
   googleAuth,
+  refreshToken,
+  getMe,
 };
-

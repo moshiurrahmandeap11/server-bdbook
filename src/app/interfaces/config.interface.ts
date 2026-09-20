@@ -10,5 +10,8 @@ export interface IEnvConfig {
   ALLOWED_ORIGINS: string[];
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
+  ACCESS_TOKEN_EXPIRES_IN: string;
+  REFRESH_TOKEN_EXPIRES_IN: string;
+  JWT_REFRESH_SECRET: string;
 }
 
