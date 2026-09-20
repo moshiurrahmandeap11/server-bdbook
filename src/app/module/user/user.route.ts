@@ -31,8 +31,10 @@ router.post("/logout", authController.logout);
 router.get("/me", auth(), userController.getMe);
 router.get("/", userController.getAllUsers);
 router.get("/id/:id", userController.getUserById);
+router.get("/username/:username", userController.getUserByUsername);
 router.get("/email/:email", userController.getUserByEmail);
 router.get("/search/:query", userController.searchUsers);
+router.get("/:id", userController.getUserById);
 
 router.patch(
   "/:id",
