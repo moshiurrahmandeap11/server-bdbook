@@ -28,9 +28,31 @@ const signup = async (payload: ISignupPayload): Promise<ISignupResult> => {
   const hashedPassword = await bcrypt.hash(payload.password, 10);
 
   const fullName = (payload.fullName || (payload as any).name || "").trim();
+
+  let baseUsername = payload.username
+    ? payload.username.toLowerCase().trim().replace(/[^\w]/g, "")
+    : fullName.toLowerCase().trim().replace(/\s+/g, "").replace(/[^\w]/g, "");
+
+  if (!baseUsername || baseUsername.length < 3) {
+    baseUsername = emailLower.split("@")[0].toLowerCase().replace(/[^\w]/g, "");
+  }
+  if (!baseUsername || baseUsername.length < 3) {
+    baseUsername = `user${Math.floor(1000 + Math.random() * 9000)}`;
+  }
+
+  let username = baseUsername;
+  let count = 1;
+  while (true) {
+    const existing = await prisma.user.findUnique({ where: { username } });
+    if (!existing) break;
+    username = `${baseUsername}${count}`;
+    count++;
+  }
+
   const newUser = await prisma.user.create({
     data: {
       email: emailLower,
+      username,
       password: hashedPassword,
       fullName,
       gender: payload.gender,
@@ -41,6 +63,7 @@ const signup = async (payload: ISignupPayload): Promise<ISignupResult> => {
     select: {
       id: true,
       email: true,
+      username: true,
       fullName: true,
       role: true,
       gender: true,
@@ -60,6 +83,7 @@ const signup = async (payload: ISignupPayload): Promise<ISignupResult> => {
     user: {
       id: newUser.id,
       _id: newUser.id,
+      username: newUser.username || username,
       fullName: newUser.fullName,
       email: newUser.email,
       role: newUser.role,
@@ -98,6 +122,7 @@ const login = async (payload: ILoginPayload): Promise<ILoginResult> => {
   const userResponse: IAuthUserResponse = {
     id: user.id,
     _id: user.id,
+    username: user.username || user.email.split("@")[0],
     fullName: user.fullName,
     email: user.email,
     role: user.role,
@@ -189,9 +214,28 @@ const googleAuth = async (payload: IGoogleAuthPayload): Promise<ILoginResult> =>
       typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36),
       10
     );
+
+    let baseUsername = fullName.toLowerCase().trim().replace(/\s+/g, "").replace(/[^\w]/g, "");
+    if (!baseUsername || baseUsername.length < 3) {
+      baseUsername = email.split("@")[0].toLowerCase().replace(/[^\w]/g, "");
+    }
+    if (!baseUsername || baseUsername.length < 3) {
+      baseUsername = `user${Math.floor(1000 + Math.random() * 9000)}`;
+    }
+
+    let username = baseUsername;
+    let count = 1;
+    while (true) {
+      const existing = await prisma.user.findUnique({ where: { username } });
+      if (!existing) break;
+      username = `${baseUsername}${count}`;
+      count++;
+    }
+
     user = await prisma.user.create({
       data: {
         email,
+        username,
         password: randomPassword,
         fullName: fullName.trim(),
         profilePicUrl,
@@ -219,6 +263,7 @@ const googleAuth = async (payload: IGoogleAuthPayload): Promise<ILoginResult> =>
   const userResponse: IAuthUserResponse = {
     id: user.id,
     _id: user.id,
+    username: user.username || user.email.split("@")[0],
     fullName: user.fullName,
     email: user.email,
     role: user.role,
@@ -282,6 +327,7 @@ const getMe = async (userId: string): Promise<IAuthUserResponse> => {
   return {
     id: user.id,
     _id: user.id,
+    username: user.username || user.email.split("@")[0],
     fullName: user.fullName,
     email: user.email,
     role: user.role,
