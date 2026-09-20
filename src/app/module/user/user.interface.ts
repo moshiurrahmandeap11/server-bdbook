@@ -75,3 +75,4 @@ export interface ISearchUserParams {
   limit?: number;
 }
 
+// Step 1: refactor(user): add case-insensitive matching to getUserByUsername
