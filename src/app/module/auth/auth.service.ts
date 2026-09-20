@@ -89,7 +89,14 @@ const login = async (payload: ILoginPayload): Promise<ILoginResult> => {
   };
 };
 
+const googleAuth = async (payload: IGoogleAuthPayload): Promise<ILoginResult> => {
+  // Initial googleAuth declaration
+  throw new Error("Not implemented");
+};
+
 export const authService = {
-  signup,
   login,
+  register,
+  changePassword,
+  googleAuth,
 };
