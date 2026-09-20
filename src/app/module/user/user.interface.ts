@@ -79,3 +79,4 @@ export interface ISearchUserParams {
 // Step 2: refactor(user): add fallback ID lookup to getUserByUsername
 // Step 3: refactor(user): add slugified fullName matching to getUserByUsername
 // Step 4: refactor(user): enhance getUserById with fallback lookup by username
+// Step 5: refactor(user): update searchUsers query to search username alongside fullName
