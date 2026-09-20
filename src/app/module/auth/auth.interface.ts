@@ -15,6 +15,8 @@ export interface ILoginPayload {
 
 export interface IGoogleAuthPayload {
   idToken?: string;
+  code?: string;
+  redirectUri?: string;
 }
 
 export interface IAuthUserResponse {
