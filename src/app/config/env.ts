@@ -40,6 +40,7 @@ const loadEnvVariables = (): IEnvConfig => {
     CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || "",
     CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || "",
     ALLOWED_ORIGINS: allowedOrigins,
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
   };
 };
 
