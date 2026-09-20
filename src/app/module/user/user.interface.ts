@@ -6,6 +6,7 @@ export interface IUserFilters {
 
 export interface IUpdateUserPayload {
   fullName?: string;
+  username?: string;
   gender?: Gender;
   dob?: string | Date;
   bio?: string;
@@ -21,11 +22,17 @@ export interface IChangePasswordPayload {
 export interface IUserProfileResponse {
   id: string;
   _id?: string;
+  username: string;
   fullName: string;
+  name: string;
   email: string;
   role: UserRole;
   gender?: Gender | null;
   dob?: Date | null;
+  bio?: string | null;
+  location?: string | null;
+  website?: string | null;
+  avatar?: string | null;
   profilePicUrl?: string | null;
   profilePicPublicId?: string | null;
   profilePicOptimizedUrl?: string | null;
@@ -34,6 +41,7 @@ export interface IUserProfileResponse {
     publicId?: string | null;
     optimizedUrl?: string | null;
   } | null;
+  coverImage?: string | null;
   coverPhotoUrl?: string | null;
   coverPhotoPublicId?: string | null;
   coverPhotoOptimizedUrl?: string | null;
