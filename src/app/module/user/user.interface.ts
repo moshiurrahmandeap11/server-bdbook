@@ -77,3 +77,4 @@ export interface ISearchUserParams {
 
 // Step 1: refactor(user): add case-insensitive matching to getUserByUsername
 // Step 2: refactor(user): add fallback ID lookup to getUserByUsername
+// Step 3: refactor(user): add slugified fullName matching to getUserByUsername
