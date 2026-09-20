@@ -19,5 +19,7 @@ router.post(
 
 router.post("/logout", authController.logout);
 
+router.post("/google", authController.googleAuth);
+
 export const authRoutes = router;
 
