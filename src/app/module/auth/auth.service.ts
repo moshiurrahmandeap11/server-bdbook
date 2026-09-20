@@ -90,8 +90,19 @@ const login = async (payload: ILoginPayload): Promise<ILoginResult> => {
 };
 
 const googleAuth = async (payload: IGoogleAuthPayload): Promise<ILoginResult> => {
-  // Initial googleAuth declaration
-  throw new Error("Not implemented");
+  let email = "";
+  let fullName = "";
+  let profilePicUrl: string | null = null;
+
+  if (payload.idToken) {
+    const res = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(payload.idToken)}`
+    );
+    if (!res.ok) {
+      throw new AppError(status.UNAUTHORIZED, "Invalid Google ID token");
+    }
+  }
+  throw new Error("WIP");
 };
 
 export const authService = {
