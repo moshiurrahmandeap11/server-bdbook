@@ -87,3 +87,4 @@ export interface ISearchUserParams {
 // Step 10: refactor(user): clean up formatUserProfile null checks
 // Step 11: refactor(user): enhance searchUsers query limit handling
 // Step 12: chore(prisma): verify schema synchronization with Neon database
+// Step 13: chore(server): verify /api/v1 router mounting for users and auth
