@@ -18,11 +18,17 @@ const formatUserProfile = (user: User): IUserProfileResponse => {
   return {
     id: user.id,
     _id: user.id,
+    username: user.username || user.email.split("@")[0],
     fullName: user.fullName,
+    name: user.fullName,
     email: user.email,
     role: user.role,
     gender: user.gender,
     dob: user.dob,
+    bio: user.bio,
+    location: user.location,
+    website: user.website,
+    avatar: user.profilePicUrl,
     profilePicUrl: user.profilePicUrl,
     profilePicPublicId: user.profilePicPublicId,
     profilePicOptimizedUrl: user.profilePicOptimizedUrl,
@@ -33,6 +39,7 @@ const formatUserProfile = (user: User): IUserProfileResponse => {
           optimizedUrl: user.profilePicOptimizedUrl,
         }
       : null,
+    coverImage: user.coverPhotoUrl,
     coverPhotoUrl: user.coverPhotoUrl,
     coverPhotoPublicId: user.coverPhotoPublicId,
     coverPhotoOptimizedUrl: user.coverPhotoOptimizedUrl,
@@ -103,9 +110,68 @@ const getAllUsers = async (
 };
 
 const getUserById = async (id: string): Promise<IUserProfileResponse> => {
-  const user = await prisma.user.findUnique({
-    where: { id },
+  const cleanId = id.trim();
+  let user = await prisma.user.findUnique({
+    where: { id: cleanId },
+  }).catch(() => null);
+
+  if (!user) {
+    user = await prisma.user.findFirst({
+      where: {
+        username: {
+          equals: cleanId.toLowerCase(),
+          mode: "insensitive",
+        },
+      },
+    });
+  }
+
+  if (!user) {
+    const allUsers = await prisma.user.findMany();
+    user =
+      allUsers.find(
+        (u) =>
+          u.id === cleanId ||
+          u.username?.toLowerCase() === cleanId.toLowerCase() ||
+          u.fullName?.toLowerCase().replace(/\s+/g, "") === cleanId.toLowerCase()
+      ) || null;
+  }
+
+  if (!user) {
+    throw new AppError(status.NOT_FOUND, "User not found");
+  }
+
+  return formatUserProfile(user);
+};
+
+const getUserByUsername = async (username: string): Promise<IUserProfileResponse> => {
+  const cleanUsername = username.toLowerCase().trim();
+  let user = await prisma.user.findFirst({
+    where: {
+      username: {
+        equals: cleanUsername,
+        mode: "insensitive",
+      },
+    },
   });
+
+  if (!user) {
+    user = await prisma.user.findUnique({
+      where: { id: username.trim() },
+    }).catch(() => null);
+  }
+
+  if (!user) {
+    const allUsers = await prisma.user.findMany();
+    user =
+      allUsers.find(
+        (u) =>
+          u.username?.toLowerCase() === cleanUsername ||
+          u.id === username.trim() ||
+          u.fullName?.toLowerCase().replace(/\s+/g, "") === cleanUsername ||
+          u.email?.split("@")[0].toLowerCase() === cleanUsername
+      ) || null;
+  }
 
   if (!user) {
     throw new AppError(status.NOT_FOUND, "User not found");
@@ -138,6 +204,7 @@ const searchUsers = async (
     where: {
       isActive: true,
       OR: [
+        { username: { contains: query.trim(), mode: "insensitive" } },
         { fullName: { contains: query.trim(), mode: "insensitive" } },
         { email: { contains: query.trim(), mode: "insensitive" } },
       ],
@@ -386,6 +453,7 @@ export const userService = {
   getMe,
   getAllUsers,
   getUserById,
+  getUserByUsername,
   getUserByEmail,
   searchUsers,
   updateUser,
