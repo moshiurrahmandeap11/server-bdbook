@@ -8,5 +8,6 @@ export interface IEnvConfig {
   CLOUDINARY_API_KEY: string;
   CLOUDINARY_API_SECRET: string;
   ALLOWED_ORIGINS: string[];
+  GOOGLE_CLIENT_ID: string;
 }
 
