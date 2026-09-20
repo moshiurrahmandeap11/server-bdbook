@@ -83,3 +83,4 @@ export interface ISearchUserParams {
 // Step 6: feat(auth): implement auto-generation of unique username on manual signup
 // Step 7: feat(auth): implement unique username generation on Google OAuth login
 // Step 8: fix(auth): include username in getMe response payload
+// Step 9: refactor(auth): ensure username is included in login response user object
