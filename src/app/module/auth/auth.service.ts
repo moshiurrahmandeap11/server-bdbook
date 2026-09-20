@@ -131,6 +131,13 @@ const googleAuth = async (payload: IGoogleAuthPayload): Promise<ILoginResult> =>
       );
     }
 
+    const tokenData = await tokenRes.json();
+    const userRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+      headers: {
+        Authorization: `Bearer ${tokenData.access_token}`,
+      },
+    });
+
       throw new Error("WIP");
 };
 
