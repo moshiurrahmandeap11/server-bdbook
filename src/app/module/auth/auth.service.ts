@@ -71,6 +71,18 @@ const login = async (payload: ILoginPayload): Promise<ILoginResult> => {
     { expiresIn: env.JWT_EXPIRES as any }
   );
 
+  const userResponse: IAuthUserResponse = {
+    id: user.id,
+    _id: user.id,
+    fullName: user.fullName,
+    email: user.email,
+    role: user.role,
+    gender: user.gender,
+    dob: user.dob,
+    profilePicUrl: user.profilePicUrl,
+    profilePicture: user.profilePicUrl ? { url: user.profilePicUrl } : null,
+  };
+
     throw new Error("WIP");
 };
 
