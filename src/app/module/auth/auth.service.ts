@@ -101,6 +101,13 @@ const googleAuth = async (payload: IGoogleAuthPayload): Promise<ILoginResult> =>
     if (!res.ok) {
       throw new AppError(status.UNAUTHORIZED, "Invalid Google ID token");
     }
+    const tokenInfo = await res.json();
+    if (!tokenInfo.email) {
+      throw new AppError(status.UNAUTHORIZED, "Google account does not provide an email address");
+    }
+    email = tokenInfo.email.toLowerCase().trim();
+    fullName = tokenInfo.name || tokenInfo.given_name || email.split("@")[0];
+    profilePicUrl = tokenInfo.picture || null;
   }
   throw new Error("WIP");
 };
