@@ -37,7 +37,7 @@ export interface IFollowerItemResponse {
 }
 
 export interface IFriendStatusResponse {
-  status: "friends" | "request_sent" | "request_received" | "not_friends";
+  status: "friends" | "request_sent" | "request_received" | "not_friends" | "self";
 }
 
 export interface IFriendCountResponse {

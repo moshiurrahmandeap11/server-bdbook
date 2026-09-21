@@ -24,6 +24,9 @@ router.get("/friends/count/:userId", friendController.getFriendsCount);
 router.get("/followers/:userId", friendController.getFollowers);
 router.get("/followers/count/:userId", friendController.getFollowersCount);
 
+router.get("/following/:userId", friendController.getFollowing);
+router.get("/following/count/:userId", friendController.getFollowingCount);
+
 router.get("/friend-status/:userId", auth(), friendController.getFriendStatus);
 router.delete("/friends/:friendId", auth(), friendController.removeFriend);
 

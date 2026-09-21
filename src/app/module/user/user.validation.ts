@@ -1,12 +1,12 @@
 import { z } from "zod";
 
 const updateUserValidationSchema = z.object({
-  fullName: z.string().min(2, "Full name must be at least 2 characters long").optional(),
-  gender: z.enum(["male", "female", "other"]).optional(),
-  dob: z.string().or(z.date()).optional(),
-  bio: z.string().max(500, "Bio cannot exceed 500 characters").optional(),
-  location: z.string().max(100).optional(),
-  website: z.string().url("Invalid website URL").optional().or(z.literal("")),
+  fullName: z.string().min(1, "Full name is required").optional(),
+  gender: z.enum(["male", "female", "other"]).optional().nullable().or(z.literal("")),
+  dob: z.string().or(z.date()).optional().nullable().or(z.literal("")),
+  bio: z.string().max(500, "Bio cannot exceed 500 characters").optional().nullable().or(z.literal("")),
+  location: z.string().max(100).optional().nullable().or(z.literal("")),
+  website: z.string().max(255).optional().nullable().or(z.literal("")),
 });
 
 const changePasswordValidationSchema = z.object({

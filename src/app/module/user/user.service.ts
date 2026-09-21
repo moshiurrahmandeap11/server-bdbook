@@ -239,8 +239,11 @@ const updateUser = async (
     where: { id: targetUserId },
     data: {
       fullName: payload.fullName?.trim() || undefined,
-      gender: payload.gender || undefined,
-      dob: payload.dob ? new Date(payload.dob) : undefined,
+      gender: payload.gender ? payload.gender : (payload.gender as any) === "" ? null : undefined,
+      dob: payload.dob ? new Date(payload.dob) : (payload.dob as any) === "" ? null : undefined,
+      bio: payload.bio !== undefined ? (payload.bio.trim() || null) : undefined,
+      location: payload.location !== undefined ? (payload.location.trim() || null) : undefined,
+      website: payload.website !== undefined ? (payload.website.trim() || null) : undefined,
     },
   });
 

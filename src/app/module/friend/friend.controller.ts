@@ -109,6 +109,31 @@ const getFollowersCount = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getFollowing = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const result = await friendService.getFollowing(userId);
+
+  sendResponse(res, {
+    httpStatusCode: status.OK,
+    success: true,
+    message: "Following fetched successfully",
+    data: result,
+  });
+});
+
+const getFollowingCount = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const result = await friendService.getFollowingCount(userId);
+
+  sendResponse(res, {
+    httpStatusCode: status.OK,
+    success: true,
+    message: "Following count fetched successfully",
+    count: result.count,
+    data: result,
+  });
+});
+
 const getFriendStatus = catchAsync(async (req: Request, res: Response) => {
   const { userId } = req.params;
   const result = await friendService.getFriendStatus(req.user!.id, userId);
@@ -154,6 +179,8 @@ export const friendController = {
   getFriendsCount,
   getFollowers,
   getFollowersCount,
+  getFollowing,
+  getFollowingCount,
   getFriendStatus,
   removeFriend,
   getSavedPosts,

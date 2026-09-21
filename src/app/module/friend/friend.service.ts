@@ -53,8 +53,14 @@ const sendFriendRequest = async (
     throw new AppError(status.BAD_REQUEST, "Friend request already sent");
   }
 
-  const request = await prisma.friendRequest.create({
-    data: {
+  const request = await prisma.friendRequest.upsert({
+    where: {
+      senderId_receiverId: { senderId, receiverId },
+    },
+    update: {
+      status: "pending",
+    },
+    create: {
       senderId,
       receiverId,
       status: "pending",
@@ -251,10 +257,55 @@ const getFollowersCount = async (
   return { count };
 };
 
+const getFollowing = async (
+  userId: string
+): Promise<IFollowerItemResponse[]> => {
+  const requests = await prisma.friendRequest.findMany({
+    where: { senderId: userId },
+    include: {
+      receiver: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          profilePicUrl: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return requests.map((r) => ({
+    _id: r.receiver.id,
+    id: r.receiver.id,
+    fullName: r.receiver.fullName,
+    profilePicture: {
+      url: r.receiver.profilePicUrl,
+    },
+    email: r.receiver.email,
+    status: r.status,
+    requestId: r.id,
+    requestedAt: r.createdAt,
+  }));
+};
+
+const getFollowingCount = async (
+  userId: string
+): Promise<IFriendCountResponse> => {
+  const count = await prisma.friendRequest.count({
+    where: { senderId: userId, status: "pending" },
+  });
+  return { count };
+};
+
 const getFriendStatus = async (
   currentUserId: string,
   targetUserId: string
 ): Promise<IFriendStatusResponse> => {
+  if (currentUserId === targetUserId) {
+    return { status: "self" };
+  }
+
   const isFriend = await prisma.friendship.findFirst({
     where: {
       OR: [
@@ -299,14 +350,24 @@ const removeFriend = async (
   userId: string,
   friendId: string
 ): Promise<void> => {
-  await prisma.friendship.deleteMany({
-    where: {
-      OR: [
-        { userId, friendId },
-        { userId: friendId, friendId: userId },
-      ],
-    },
-  });
+  await Promise.all([
+    prisma.friendship.deleteMany({
+      where: {
+        OR: [
+          { userId, friendId },
+          { userId: friendId, friendId: userId },
+        ],
+      },
+    }),
+    prisma.friendRequest.deleteMany({
+      where: {
+        OR: [
+          { senderId: userId, receiverId: friendId },
+          { senderId: friendId, receiverId: userId },
+        ],
+      },
+    }),
+  ]);
 };
 
 const getSavedPosts = async (userId: string) => {
@@ -368,6 +429,8 @@ export const friendService = {
   getFriendsCount,
   getFollowers,
   getFollowersCount,
+  getFollowing,
+  getFollowingCount,
   getFriendStatus,
   removeFriend,
   getSavedPosts,
