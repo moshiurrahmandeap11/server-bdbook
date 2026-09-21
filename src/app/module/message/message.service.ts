@@ -1,3 +1,4 @@
+// Optimized message queries
 import status from "http-status";
 import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
