@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authRoutes } from "../module/auth/auth.route";
 import { friendRoutes } from "../module/friend/friend.route";
+import { followRoutes } from "../module/follow/follow.route";
 import { messageRoutes } from "../module/message/message.route";
 import { notificationRoutes } from "../module/notification/notification.route";
 import { postRoutes } from "../module/post/post.route";
@@ -12,6 +13,7 @@ router.use("/auth", authRoutes);
 router.use("/users", userRoutes);
 router.use("/posts", postRoutes);
 router.use("/notifications", notificationRoutes);
+router.use("/follow", followRoutes);
 router.use("/friends", friendRoutes);
 router.use("/messages", messageRoutes);
 
