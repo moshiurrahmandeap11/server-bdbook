@@ -1,3 +1,4 @@
+// Share post service logic
 import { Prisma } from "@prisma/client";
 import status from "http-status";
 import AppError from "../../errorHelpers/AppError";
