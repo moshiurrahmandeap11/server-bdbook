@@ -1,4 +1,3 @@
-// Share post service logic
 import { Prisma } from "@prisma/client";
 import status from "http-status";
 import AppError from "../../errorHelpers/AppError";
@@ -469,7 +468,8 @@ const deleteComment = async (
 
 const sharePost = async (
   userId: string,
-  postId: string
+  postId: string,
+  description?: string
 ): Promise<IShareResponse> => {
   const originalPost = await prisma.post.findUnique({
     where: { id: postId, isActive: true },
@@ -485,7 +485,7 @@ const sharePost = async (
       userId,
       originalPostId: postId,
       isShare: true,
-      description: "",
+      description: description?.trim() || "",
       isActive: true,
     },
   });
