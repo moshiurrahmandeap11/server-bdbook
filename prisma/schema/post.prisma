@@ -43,3 +43,14 @@ model Comment {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@map("comments")
 }
+
+model SavedPost {
+  id String @id @default(uuid())
+  userId String
+  postId String
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  @@unique([userId, postId])
+  @@map("saved_posts")
+}
