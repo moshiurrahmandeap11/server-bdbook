@@ -1,14 +1,102 @@
 import { Request, Response } from "express";
-import catchAsync from "../../shared/catchAsync";
-import sendResponse from "../../shared/sendResponse";
-import * as followService from "./follow.service";
+import status from "http-status";
+import { catchAsync } from "../../shared/catchAsync";
+import { sendResponse } from "../../shared/sendResponse";
+import { followService } from "./follow.service";
 
-export const followUser = catchAsync(async (req: any, res: Response) => {
-  const result = await followService.followUser(req.user.id, req.params.userId);
-  sendResponse(res, { statusCode: 200, success: true, message: "User followed successfully", data: result });
+const followUser = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const result = await followService.followUser(req.user!.id, userId);
+
+  sendResponse(res, {
+    httpStatusCode: status.OK,
+    success: true,
+    message: "Followed successfully",
+    data: result,
+  });
 });
 
-export const getFollowStatus = catchAsync(async (req: any, res: Response) => {
-  const result = await followService.getFollowStatus(req.user.id, req.params.userId);
-  sendResponse(res, { statusCode: 200, success: true, message: "Follow status retrieved", data: result });
+const unfollowUser = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const result = await followService.unfollowUser(req.user!.id, userId);
+
+  sendResponse(res, {
+    httpStatusCode: status.OK,
+    success: true,
+    message: "Unfollowed successfully",
+    data: result,
+  });
 });
+
+const getFollowStatus = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const result = await followService.getFollowStatus(req.user!.id, userId);
+
+  sendResponse(res, {
+    httpStatusCode: status.OK,
+    success: true,
+    message: "Follow status fetched successfully",
+    data: result,
+  });
+});
+
+const getFollowers = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const result = await followService.getFollowers(userId);
+
+  sendResponse(res, {
+    httpStatusCode: status.OK,
+    success: true,
+    message: "Followers fetched successfully",
+    data: result,
+  });
+});
+
+const getFollowersCount = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const result = await followService.getFollowersCount(userId);
+
+  sendResponse(res, {
+    httpStatusCode: status.OK,
+    success: true,
+    message: "Followers count fetched successfully",
+    count: result.count,
+    data: result,
+  });
+});
+
+const getFollowing = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const result = await followService.getFollowing(userId);
+
+  sendResponse(res, {
+    httpStatusCode: status.OK,
+    success: true,
+    message: "Following fetched successfully",
+    data: result,
+  });
+});
+
+const getFollowingCount = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const result = await followService.getFollowingCount(userId);
+
+  sendResponse(res, {
+    httpStatusCode: status.OK,
+    success: true,
+    message: "Following count fetched successfully",
+    count: result.count,
+    data: result,
+  });
+});
+
+export const followController = {
+  followUser,
+  unfollowUser,
+  getFollowStatus,
+  getFollowers,
+  getFollowersCount,
+  getFollowing,
+  getFollowingCount,
+};
+
