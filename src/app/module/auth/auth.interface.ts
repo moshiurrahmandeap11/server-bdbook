@@ -48,8 +48,12 @@ export interface IRefreshTokenResult {
 }
 
 export interface ISignupResult {
-  id: string;
-  email: string;
-  fullName: string;
+  id?: string;
+  email?: string;
+  fullName?: string;
+  accessToken: string;
+  refreshToken: string;
+  token?: string;
+  user: IAuthUserResponse;
 }
 

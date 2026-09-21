@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import status from "http-status";
 import AppError from "../../errorHelpers/AppError";
 import { IPaginatedResult, IPaginationOptions } from "../../interfaces/common.interface";
+import { deleteLocalMedia } from "../../middleware/upload";
 import { prisma } from "../../lib/prisma";
 import { notificationService } from "../notification/notification.service";
 import {
@@ -703,6 +704,10 @@ const deletePost = async (
 
   if (post.userId !== userId && userRole !== "admin") {
     throw new AppError(status.FORBIDDEN, "You can only delete your own posts");
+  }
+
+  if (post.mediaPublicId) {
+    await deleteLocalMedia(post.mediaPublicId);
   }
 
   await prisma.post.update({

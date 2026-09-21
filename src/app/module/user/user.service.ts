@@ -4,6 +4,7 @@ import status from "http-status";
 import AppError from "../../errorHelpers/AppError";
 import { IPaginatedResult, IPaginationOptions } from "../../interfaces/common.interface";
 import { deleteFromCloudinary, getOptimizedUrl } from "../../lib/cloudinary";
+import { deleteLocalMedia } from "../../middleware/upload";
 import { prisma } from "../../lib/prisma";
 import {
   IChangePasswordPayload,
@@ -264,7 +265,11 @@ const uploadProfilePicture = async (
 
   if (user.profilePicPublicId) {
     try {
-      await deleteFromCloudinary(user.profilePicPublicId, "image");
+      if (user.profilePicPublicId.startsWith("bdbook/")) {
+        await deleteFromCloudinary(user.profilePicPublicId, "image");
+      } else {
+        await deleteLocalMedia(user.profilePicPublicId);
+      }
     } catch {
       // Continue even if delete fails
     }
@@ -272,11 +277,10 @@ const uploadProfilePicture = async (
 
   const url = file.path;
   const publicId = file.filename;
-  const optimizedUrl = getOptimizedUrl(publicId, {
-    width: 200,
-    height: 200,
-    crop: "fill",
-  });
+  // Local files are pre-compressed with Sharp; fallback to Cloudinary helper if old Cloudinary publicId
+  const optimizedUrl = publicId.startsWith("bdbook/")
+    ? getOptimizedUrl(publicId, { width: 200, height: 200, crop: "fill" })
+    : url;
 
   const updatedUser = await prisma.user.update({
     where: { id: userId },
@@ -304,7 +308,11 @@ const removeProfilePicture = async (userId: string): Promise<void> => {
     throw new AppError(status.NOT_FOUND, "No profile picture found");
   }
 
-  await deleteFromCloudinary(user.profilePicPublicId, "image");
+  if (user.profilePicPublicId.startsWith("bdbook/")) {
+    await deleteFromCloudinary(user.profilePicPublicId, "image");
+  } else {
+    await deleteLocalMedia(user.profilePicPublicId);
+  }
 
   await prisma.user.update({
     where: { id: userId },
@@ -334,7 +342,11 @@ const uploadCoverPhoto = async (
 
   if (user.coverPhotoPublicId) {
     try {
-      await deleteFromCloudinary(user.coverPhotoPublicId, "image");
+      if (user.coverPhotoPublicId.startsWith("bdbook/")) {
+        await deleteFromCloudinary(user.coverPhotoPublicId, "image");
+      } else {
+        await deleteLocalMedia(user.coverPhotoPublicId);
+      }
     } catch {
       // Continue even if delete fails
     }
@@ -342,11 +354,9 @@ const uploadCoverPhoto = async (
 
   const url = file.path;
   const publicId = file.filename;
-  const optimizedUrl = getOptimizedUrl(publicId, {
-    width: 1200,
-    height: 400,
-    crop: "fill",
-  });
+  const optimizedUrl = publicId.startsWith("bdbook/")
+    ? getOptimizedUrl(publicId, { width: 1200, height: 400, crop: "fill" })
+    : url;
 
   const updatedUser = await prisma.user.update({
     where: { id: userId },
@@ -374,7 +384,11 @@ const removeCoverPhoto = async (userId: string): Promise<void> => {
     throw new AppError(status.NOT_FOUND, "No cover photo found");
   }
 
-  await deleteFromCloudinary(user.coverPhotoPublicId, "image");
+  if (user.coverPhotoPublicId.startsWith("bdbook/")) {
+    await deleteFromCloudinary(user.coverPhotoPublicId, "image");
+  } else {
+    await deleteLocalMedia(user.coverPhotoPublicId);
+  }
 
   await prisma.user.update({
     where: { id: userId },

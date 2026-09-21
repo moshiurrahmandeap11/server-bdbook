@@ -6,6 +6,7 @@ import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
 import {
   IAuthUserResponse,
+  IGoogleAuthPayload,
   ILoginPayload,
   ILoginResult,
   IRefreshTokenResult,

@@ -269,7 +269,6 @@ const uploadMessageMedia = async (
     throw new AppError(status.BAD_REQUEST, "No file uploaded");
   }
 
-  const base64 = file.buffer.toString("base64");
   const mimeType = file.mimetype;
   const fileType: "image" | "video" | "document" = mimeType.startsWith("image")
     ? "image"
@@ -277,7 +276,7 @@ const uploadMessageMedia = async (
     ? "video"
     : "document";
 
-  const mediaUrl = `data:${mimeType};base64,${base64}`;
+  const mediaUrl = file.path || (file.buffer ? `data:${mimeType};base64,${file.buffer.toString("base64")}` : "");
 
   return {
     url: mediaUrl,

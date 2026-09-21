@@ -13,5 +13,7 @@ export interface IEnvConfig {
   ACCESS_TOKEN_EXPIRES_IN: string;
   REFRESH_TOKEN_EXPIRES_IN: string;
   JWT_REFRESH_SECRET: string;
+  SERVER_BASE_URL: string;
+  UPLOAD_DIR: string;
 }
 

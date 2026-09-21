@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import path from "path";
 import status from "http-status";
 import AppError from "../errorHelpers/AppError";
 import { IEnvConfig } from "../interfaces/config.interface";
@@ -45,6 +46,8 @@ const loadEnvVariables = (): IEnvConfig => {
     ACCESS_TOKEN_EXPIRES_IN: process.env.ACCESS_TOKEN_EXPIRES_IN || "30s",
     REFRESH_TOKEN_EXPIRES_IN: process.env.REFRESH_TOKEN_EXPIRES_IN || "7d",
     JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || "bdbook_refresh_secret_secure",
+    SERVER_BASE_URL: (process.env.SERVER_BASE_URL || `http://localhost:${Number(process.env.PORT) || 6969}`).replace(/\/+$/, ""),
+    UPLOAD_DIR: process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads"),
   };
 };
 

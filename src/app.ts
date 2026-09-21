@@ -1,10 +1,16 @@
 import cookieParser from "cookie-parser";
 import cors, { CorsOptions } from "cors";
 import express, { Application, Request, Response } from "express";
+import fs from "fs";
 import { env } from "./app/config/env";
 import { globalErrorHandler } from "./app/middleware/globalErrorHandler";
 import { notFound } from "./app/middleware/notFound";
 import { IndexRoutes } from "./app/routes";
+
+// Ensure root uploads folder exists
+if (!fs.existsSync(env.UPLOAD_DIR)) {
+  fs.mkdirSync(env.UPLOAD_DIR, { recursive: true });
+}
 
 const app: Application = express();
 
@@ -36,6 +42,15 @@ app.use(cors(corsOptions));
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded media statically with caching and Range Request support (for video seeking)
+app.use(
+  "/uploads",
+  express.static(env.UPLOAD_DIR, {
+    maxAge: "7d",
+    acceptRanges: true,
+  })
+);
 
 // Primary API prefix for client-bdbook compatibility
 app.use("/v1/api", IndexRoutes);
