@@ -5,3 +5,12 @@ enum MessageType {
   file
   share
 }
+
+model Conversation {
+  id String @id @default(uuid())
+  lastMessage String?
+  lastMessageTime DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("conversations")
+}
