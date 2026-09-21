@@ -10,17 +10,56 @@ enum Gender {
 }
 
 model User {
-  id String @id @default(uuid())
-  email String @unique
-  username String? @unique
-  password String
-  fullName String
-  role UserRole @default(user)
-  gender Gender?
-  bio String? @db.Text
-  profilePicUrl String?
-  coverPhotoUrl String?
-  isVerified Boolean @default(false)
-  isActive Boolean @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                     String    @id @default(uuid())
+  email                  String    @unique
+  username               String?   @unique
+  password               String
+  fullName               String
+  role                   UserRole  @default(user)
+  gender                 Gender?
+  dob                    DateTime?
+  bio                    String?   @db.Text
+  location               String?
+  website                String?
+  profilePicUrl          String?
+  profilePicPublicId     String?
+  profilePicOptimizedUrl String?
+  coverPhotoUrl          String?
+  coverPhotoPublicId     String?
+  coverPhotoOptimizedUrl String?
+  isVerified             Boolean   @default(false)
+  isActive               Boolean   @default(true)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  // Post relations
+  posts              Post[]
+  comments           Comment[]
+  likes              PostLike[]
+  reposts            PostRepost[]
+  savedPosts         SavedPost[]
+  interestedPosts    InterestedPost[]
+  notInterestedPosts NotInterestedPost[]
+
+  // Follow relations
+  following Follow[] @relation("UserFollowing")
+  followers Follow[] @relation("UserFollowers")
+
+  // Friend relations
+  sentFriendRequests     FriendRequest[] @relation("SentRequests")
+  receivedFriendRequests FriendRequest[] @relation("ReceivedRequests")
+  friendships            Friendship[]    @relation("UserFriendships")
+  friendOf               Friendship[]    @relation("FriendFriendships")
+
+  // Message relations
+  sentMessages     Message[]                 @relation("SentMessages")
+  receivedMessages Message[]                 @relation("ReceivedMessages")
+  conversations    ConversationParticipant[]
+
+  // Notification relations
+  notificationsReceived  Notification[] @relation("RecipientNotifications")
+  notificationsTriggered Notification[] @relation("ActorNotifications")
+
+  @@map("users")
+}
+
