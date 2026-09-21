@@ -1,56 +1,126 @@
 model Post {
-  id String @id @default(uuid())
-  userId String
-  description String? @db.Text
-  mediaUrl String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String    @id @default(uuid())
+  userId         String
+  description    String?   @db.Text
+  mediaUrl       String?
+  mediaPublicId  String?
+  mediaType      String? // "image" | "video"
+  mediaMimeType  String?
+  mediaSize      Int?
+  isShare        Boolean   @default(false)
+  isRepost       Boolean   @default(false)
+  originalPostId String?
+  isActive       Boolean   @default(true)
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  originalPost Post?  @relation("PostShares", fields: [originalPostId], references: [id], onDelete: SetNull)
+  sharedPosts  Post[] @relation("PostShares")
+
+  likes           PostLike[]
+  comments        Comment[]
+  reposts         PostRepost[]
+  savedPosts      SavedPost[]
+  interestedPosts InterestedPost[]
+  notInterestedBy NotInterestedPost[]
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([isActive])
   @@map("posts")
 }
 
 model PostLike {
-  id String @id @default(uuid())
-  postId String
-  userId String
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
   createdAt DateTime @default(now())
+
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
   @@map("post_likes")
 }
 
 model PostRepost {
-  id String @id @default(uuid())
-  postId String
-  userId String
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
   createdAt DateTime @default(now())
+
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
   @@map("post_reposts")
 }
 
 model Comment {
-  id String @id @default(uuid())
-  postId String
-  userId String
-  parentId String?
-  text String @db.Text
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  parentId  String?
+  text      String   @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  post    Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentReplies")
+
+  @@index([postId])
+  @@index([userId])
+  @@index([parentId])
   @@map("comments")
 }
 
 model SavedPost {
-  id String @id @default(uuid())
-  userId String
-  postId String
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
   createdAt DateTime @default(now())
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
   @@unique([userId, postId])
+  @@index([userId])
   @@map("saved_posts")
 }
+
+model InterestedPost {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([userId])
+  @@map("interested_posts")
+}
+
+model NotInterestedPost {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([userId])
+  @@map("not_interested_posts")
+}
+
