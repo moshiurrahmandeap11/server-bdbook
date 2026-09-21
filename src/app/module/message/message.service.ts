@@ -1,4 +1,3 @@
-// Optimized message queries
 import status from "http-status";
 import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
@@ -157,26 +156,61 @@ const sendMessage = async (
 const getConversations = async (
   userId: string
 ): Promise<IConversationItemResponse[]> => {
-  const friendships = await prisma.friendship.findMany({
-    where: { userId },
-    include: {
-      friend: {
-        select: {
-          id: true,
-          fullName: true,
-          profilePicUrl: true,
-        },
-      },
+  // Find all distinct message partners
+  const messages = await prisma.message.findMany({
+    where: {
+      OR: [{ senderId: userId }, { receiverId: userId }],
+    },
+    select: {
+      senderId: true,
+      receiverId: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const partnerIdSet = new Set<string>();
+  messages.forEach((m) => {
+    if (m.senderId !== userId) partnerIdSet.add(m.senderId);
+    if (m.receiverId !== userId) partnerIdSet.add(m.receiverId);
+  });
+
+  // Also include following / followers
+  const follows = await prisma.follow.findMany({
+    where: {
+      OR: [{ followerId: userId }, { followingId: userId }],
+    },
+    select: {
+      followerId: true,
+      followingId: true,
+    },
+  });
+  follows.forEach((f) => {
+    if (f.followerId !== userId) partnerIdSet.add(f.followerId);
+    if (f.followingId !== userId) partnerIdSet.add(f.followingId);
+  });
+
+  const partnerIds = Array.from(partnerIdSet);
+  if (partnerIds.length === 0) {
+    return [];
+  }
+
+  const partners = await prisma.user.findMany({
+    where: { id: { in: partnerIds } },
+    select: {
+      id: true,
+      fullName: true,
+      profilePicUrl: true,
     },
   });
 
   const conversations = await Promise.all(
-    friendships.map(async (f) => {
+    partners.map(async (p) => {
       const lastMessage = await prisma.message.findFirst({
         where: {
           OR: [
-            { senderId: userId, receiverId: f.friendId },
-            { senderId: f.friendId, receiverId: userId },
+            { senderId: userId, receiverId: p.id },
+            { senderId: p.id, receiverId: userId },
           ],
         },
         orderBy: { createdAt: "desc" },
@@ -184,19 +218,19 @@ const getConversations = async (
 
       const unreadCount = await prisma.message.count({
         where: {
-          senderId: f.friendId,
+          senderId: p.id,
           receiverId: userId,
           isRead: false,
         },
       });
 
       return {
-        friendId: f.friend.id,
-        friendName: f.friend.fullName,
-        friendProfilePicture: f.friend.profilePicUrl,
+        friendId: p.id,
+        friendName: p.fullName,
+        friendProfilePicture: p.profilePicUrl,
         lastMessage: lastMessage ? lastMessage.message || "Media" : null,
         unreadCount,
-        updatedAt: lastMessage?.createdAt || f.createdAt,
+        updatedAt: lastMessage?.createdAt || new Date(0),
       };
     })
   );
