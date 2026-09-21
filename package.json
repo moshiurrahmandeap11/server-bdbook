@@ -18,7 +18,9 @@
     "schema": "prisma/schema.prisma"
   },
   "dependencies": {
-    "@prisma/client": "^6.4.1",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "pg": "^8.21.0",
     "@types/uuid": "^10.0.0",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.5.1",
