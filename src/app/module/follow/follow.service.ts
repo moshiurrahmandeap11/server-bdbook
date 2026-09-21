@@ -11,3 +11,9 @@ export const followUser = async (followerId: string, followingId: string) => {
 export const unfollowUser = async (followerId: string, followingId: string) => {
   return prisma.follow.deleteMany({ where: { followerId, followingId } });
 };
+
+export const getFollowStatus = async (currentUserId: string, targetUserId: string) => {
+  const isFollowing = await prisma.follow.findUnique({ where: { followerId_followingId: { followerId: currentUserId, followingId: targetUserId } } });
+  const isFollowedBy = await prisma.follow.findUnique({ where: { followerId_followingId: { followerId: targetUserId, followingId: currentUserId } } });
+  return { isFollowing: !!isFollowing, isFollowedBy: !!isFollowedBy };
+};
