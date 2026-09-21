@@ -1,4 +1,4 @@
-// DNS lookup IPv4 fallback patch
+// PrismaPg adapter initialized
 import { PrismaClient } from "@prisma/client";
 import { env } from "../config/env";
 
