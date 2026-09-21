@@ -7,3 +7,26 @@ enum NotificationType {
   friend_request
   friend_accept
 }
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String // Recipient
+  actorId   String? // User who triggered action
+  type      NotificationType
+  title     String?
+  message   String
+  postId    String?
+  commentId String?
+  requestId String?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user  User  @relation("RecipientNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  actor User? @relation("ActorNotifications", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
