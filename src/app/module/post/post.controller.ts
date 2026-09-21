@@ -128,7 +128,8 @@ const deleteComment = catchAsync(async (req: Request, res: Response) => {
 
 const sharePost = catchAsync(async (req: Request, res: Response) => {
   const { postId } = req.params;
-  const result = await postService.sharePost(req.user!.id, postId);
+  const { description } = req.body || {};
+  const result = await postService.sharePost(req.user!.id, postId, description);
 
   sendResponse(res, {
     httpStatusCode: status.OK,
