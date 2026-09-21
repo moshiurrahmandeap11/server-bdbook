@@ -7,3 +7,7 @@ export const followUser = async (followerId: string, followingId: string) => {
   if (existing) return existing;
   return prisma.follow.create({ data: { followerId, followingId } });
 };
+
+export const unfollowUser = async (followerId: string, followingId: string) => {
+  return prisma.follow.deleteMany({ where: { followerId, followingId } });
+};
