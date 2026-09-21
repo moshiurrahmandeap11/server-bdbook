@@ -17,3 +17,7 @@ export const getFollowStatus = async (currentUserId: string, targetUserId: strin
   const isFollowedBy = await prisma.follow.findUnique({ where: { followerId_followingId: { followerId: targetUserId, followingId: currentUserId } } });
   return { isFollowing: !!isFollowing, isFollowedBy: !!isFollowedBy };
 };
+
+export const getFollowersCount = async (userId: string) => {
+  return prisma.follow.count({ where: { followingId: userId } });
+};
