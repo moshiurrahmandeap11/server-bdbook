@@ -8,6 +8,10 @@ enum MessageType {
 
 model Conversation {
   id              String    @id @default(uuid())
+  isGroup         Boolean   @default(false)
+  name            String?
+  avatar          String?
+  adminId         String?
   lastMessage     String?
   lastMessageTime DateTime?
   createdAt       DateTime  @default(now())
@@ -39,7 +43,7 @@ model Message {
   id             String      @id @default(uuid())
   conversationId String?
   senderId       String
-  receiverId     String
+  receiverId     String?
   message        String?     @db.Text
   messageType    MessageType @default(text)
   mediaUrl       String?
@@ -50,9 +54,10 @@ model Message {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User          @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver     User          @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  conversation Conversation?    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User             @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver     User?            @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  reactions    MessageReaction[]
 
   @@index([senderId, receiverId])
   @@index([receiverId, isRead])
@@ -60,3 +65,18 @@ model Message {
   @@map("messages")
 }
 
+model MessageReaction {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  reaction  String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
+  @@map("message_reactions")
+}

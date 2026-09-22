@@ -55,6 +55,7 @@ model User {
   sentMessages     Message[]                 @relation("SentMessages")
   receivedMessages Message[]                 @relation("ReceivedMessages")
   conversations    ConversationParticipant[]
+  messageReactions MessageReaction[]
 
   // Notification relations
   notificationsReceived  Notification[] @relation("RecipientNotifications")

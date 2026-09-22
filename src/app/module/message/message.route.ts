@@ -27,6 +27,18 @@ router.post(
 );
 
 router.post(
+  "/group",
+  auth(),
+  messageController.createGroup
+);
+
+router.post(
+  "/messages/react/:messageId",
+  auth(),
+  messageController.toggleReaction
+);
+
+router.post(
   "/requests/accept/:partnerId",
   auth(),
   messageController.acceptMessageRequest
@@ -39,4 +51,3 @@ router.delete(
 );
 
 export const messageRoutes = router;
-

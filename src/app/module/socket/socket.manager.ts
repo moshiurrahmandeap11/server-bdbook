@@ -4,7 +4,12 @@ import { Server } from "socket.io";
 import { env } from "../../config/env";
 import { IAuthUser } from "../../interfaces/common.interface";
 import { prisma } from "../../lib/prisma";
-import { messageService, setMessageSocketEmitter } from "../message/message.service";
+import {
+  messageService,
+  setMessageSocketEmitter,
+  setGroupMessageSocketEmitter,
+  setMessageReactionSocketEmitter,
+} from "../message/message.service";
 import { setNotificationSocketEmitter } from "../notification/notification.service";
 import {
   IAnswerCallPayload,
@@ -111,11 +116,31 @@ export class SocketManager {
       }
     });
 
-    // Connect HTTP message service to socket
+    // Connect HTTP message service to socket (1-on-1)
     setMessageSocketEmitter((receiverId: string, message: unknown) => {
       const targetSocketId = this.onlineUsers.get(receiverId);
       if (targetSocketId) {
         this.io.to(targetSocketId).emit("receive_message", message);
+      }
+    });
+
+    // Connect HTTP group message service to socket
+    setGroupMessageSocketEmitter((userIds: string[], message: unknown) => {
+      for (const uid of userIds) {
+        const targetSocketId = this.onlineUsers.get(uid);
+        if (targetSocketId) {
+          this.io.to(targetSocketId).emit("receive_message", message);
+        }
+      }
+    });
+
+    // Connect message reaction service to socket
+    setMessageReactionSocketEmitter((userIds: string[], data: unknown) => {
+      for (const uid of userIds) {
+        const targetSocketId = this.onlineUsers.get(uid);
+        if (targetSocketId) {
+          this.io.to(targetSocketId).emit("message_reaction", data);
+        }
       }
     });
   }
@@ -285,6 +310,22 @@ export class SocketManager {
         console.error("Socket mark_as_read error:", err);
       }
     });
+
+    socket.on(
+      "react_message",
+      async (data: { messageId: string; reaction: string }) => {
+        if (socket.isGuest) return;
+        try {
+          await messageService.toggleReaction(
+            socket.userId!,
+            data.messageId,
+            data.reaction
+          );
+        } catch (err) {
+          console.error("Socket react_message error:", err);
+        }
+      }
+    );
 
     // ==================== CALL EVENT HANDLERS ====================
     socket.on("call_user", (data: ICallUserPayload) => {

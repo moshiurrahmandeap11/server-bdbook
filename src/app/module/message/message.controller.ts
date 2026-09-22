@@ -79,6 +79,34 @@ const uploadMessageMedia = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const createGroup = catchAsync(async (req: Request, res: Response) => {
+  const result = await messageService.createGroup(req.user!.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: status.CREATED,
+    success: true,
+    message: "Group created successfully",
+    data: result,
+  });
+});
+
+const toggleReaction = catchAsync(async (req: Request, res: Response) => {
+  const { messageId } = req.params;
+  const { reaction } = req.body;
+  const result = await messageService.toggleReaction(
+    req.user!.id,
+    messageId,
+    reaction
+  );
+
+  sendResponse(res, {
+    httpStatusCode: status.OK,
+    success: true,
+    message: "Reaction updated",
+    data: result,
+  });
+});
+
 const acceptMessageRequest = catchAsync(async (req: Request, res: Response) => {
   const { partnerId } = req.params;
   await messageService.acceptMessageRequest(req.user!.id, partnerId);
@@ -108,7 +136,8 @@ export const messageController = {
   markAsRead,
   getUnreadCount,
   uploadMessageMedia,
+  createGroup,
+  toggleReaction,
   acceptMessageRequest,
   declineMessageRequest,
 };
-

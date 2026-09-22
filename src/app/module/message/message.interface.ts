@@ -7,15 +7,27 @@ export interface ISendMessagePayload {
   fileName?: string | null;
   fileSize?: number | null;
   tempId?: string | null;
+  conversationId?: string | null;
+}
+
+export interface IMessageReactionItem {
+  id: string;
+  messageId: string;
+  userId: string;
+  userName: string;
+  userAvatar: string | null;
+  reaction: string;
+  createdAt: Date;
 }
 
 export interface IMessageItemResponse {
   _id: string;
   id: string;
+  conversationId?: string | null;
   senderId: string;
   senderName: string;
   senderProfilePicture: string | null;
-  receiverId: string;
+  receiverId: string | null;
   message: string;
   messageType: MessageType;
   mediaUrl: string | null;
@@ -26,9 +38,17 @@ export interface IMessageItemResponse {
   createdAt: Date;
   updatedAt: Date;
   tempId?: string | null;
+  reactions?: IMessageReactionItem[];
+}
+
+export interface IConversationParticipantItem {
+  userId: string;
+  name: string;
+  avatar: string | null;
 }
 
 export interface IConversationItemResponse {
+  id?: string;
   friendId: string;
   friendName: string;
   friendProfilePicture: string | null;
@@ -36,6 +56,9 @@ export interface IConversationItemResponse {
   unreadCount: number;
   updatedAt: Date;
   isRequest?: boolean;
+  isGroup?: boolean;
+  adminId?: string | null;
+  participants?: IConversationParticipantItem[];
 }
 
 export interface IUnreadMessagesCountResponse {
@@ -49,3 +72,12 @@ export interface IUploadMediaResponse {
   size: number;
 }
 
+export interface ICreateGroupPayload {
+  name: string;
+  avatar?: string | null;
+  memberIds: string[];
+}
+
+export interface IToggleReactionPayload {
+  reaction: string;
+}
