@@ -20,6 +20,7 @@ const signup = catchAsync(async (req: Request, res: Response) => {
     user: result.user,
     data: {
       accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
       token: result.accessToken,
       user: result.user,
     },
@@ -40,6 +41,7 @@ const login = catchAsync(async (req: Request, res: Response) => {
     user: result.user,
     data: {
       accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
       token: result.accessToken,
       user: result.user,
     },
@@ -70,6 +72,7 @@ const googleAuth = catchAsync(async (req: Request, res: Response) => {
     user: result.user,
     data: {
       accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
       token: result.accessToken,
       user: result.user,
     },
@@ -77,7 +80,8 @@ const googleAuth = catchAsync(async (req: Request, res: Response) => {
 });
 
 const refreshToken = catchAsync(async (req: Request, res: Response) => {
-  const incomingRefreshToken = req.cookies?.refreshToken;
+  const incomingRefreshToken =
+    req.cookies?.refreshToken || req.body?.refreshToken || (req.headers["x-refresh-token"] as string);
   const result = await authService.getNewToken(incomingRefreshToken);
 
   tokenUtils.setAccessTokenCookie(res, result.accessToken, req);
@@ -89,6 +93,7 @@ const refreshToken = catchAsync(async (req: Request, res: Response) => {
     message: "Access token refreshed successfully",
     data: {
       accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
     },
   });
 });
