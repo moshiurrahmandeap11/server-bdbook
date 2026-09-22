@@ -45,9 +45,40 @@ export class SocketManager {
 
   private setupMiddleware() {
     this.io.use((socket: ICustomSocket, next) => {
-      const token = socket.handshake.auth?.token;
+      // 1. Try handshake auth token
+      let token = socket.handshake.auth?.token;
+
+      // 2. Try handshake headers authorization (Bearer token)
+      if (!token && socket.handshake.headers?.authorization) {
+        const parts = socket.handshake.headers.authorization.split(" ");
+        if (parts.length === 2 && parts[0] === "Bearer") {
+          token = parts[1];
+        }
+      }
+
+      // 3. Try handshake cookie (accessToken or token)
+      if (!token && socket.handshake.headers?.cookie) {
+        try {
+          const cookieEntries = socket.handshake.headers.cookie.split(";");
+          for (const c of cookieEntries) {
+            const [k, ...v] = c.trim().split("=");
+            if (k === "accessToken" || k === "token") {
+              token = decodeURIComponent(v.join("="));
+              break;
+            }
+          }
+        } catch {}
+      }
+
+      // 4. Query userId fallback if provided
+      const queryUserId = socket.handshake.query?.userId as string | undefined;
 
       if (!token) {
+        if (queryUserId && !queryUserId.startsWith("guest_")) {
+          socket.userId = queryUserId;
+          socket.isGuest = false;
+          return next();
+        }
         socket.userId = `guest_${Math.random().toString(36).substring(2, 15)}`;
         socket.isGuest = true;
         return next();
@@ -58,8 +89,13 @@ export class SocketManager {
         socket.userId = decoded.id;
         socket.isGuest = false;
       } catch {
-        socket.userId = `guest_${Math.random().toString(36).substring(2, 15)}`;
-        socket.isGuest = true;
+        if (queryUserId && !queryUserId.startsWith("guest_")) {
+          socket.userId = queryUserId;
+          socket.isGuest = false;
+        } else {
+          socket.userId = `guest_${Math.random().toString(36).substring(2, 15)}`;
+          socket.isGuest = true;
+        }
       }
 
       next();
@@ -95,7 +131,9 @@ export class SocketManager {
     console.log("User connected:", userId, socket.isGuest ? "(guest)" : "(auth)");
 
     this.onlineUsers.set(userId, socket.id);
-    this.io.emit("user_online", Array.from(this.onlineUsers.keys()));
+    const onlineList = Array.from(this.onlineUsers.keys());
+    this.io.emit("user_online", onlineList);
+    socket.emit("getOnlineUsers", onlineList);
 
     // ==================== ROOM EVENT HANDLERS ====================
     socket.on("create_room", (data: ICreateRoomPayload) => {

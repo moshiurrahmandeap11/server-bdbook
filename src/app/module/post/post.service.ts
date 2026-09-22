@@ -78,6 +78,16 @@ const formatPost = (post: any): IPostResponse => {
         userId: post.originalPost.userId,
         userName: post.originalPost.user?.fullName || "User",
         userProfilePicture: post.originalPost.user?.profilePicUrl || null,
+        username: post.originalPost.user?.username || null,
+        user: post.originalPost.user
+          ? {
+              id: post.originalPost.user.id,
+              _id: post.originalPost.user.id,
+              fullName: post.originalPost.user.fullName,
+              email: (post.originalPost.user as any).email || "",
+              profilePicUrl: post.originalPost.user.profilePicUrl || null,
+            }
+          : null,
         description: post.originalPost.description,
         media: post.originalPost.mediaUrl
           ? {
@@ -99,6 +109,16 @@ const formatPost = (post: any): IPostResponse => {
     userName: post.user?.fullName || "User",
     userEmail: post.user?.email || "",
     userProfilePicture: post.user?.profilePicUrl || null,
+    username: post.user?.username || null,
+    user: post.user
+      ? {
+          id: post.user.id,
+          _id: post.user.id,
+          fullName: post.user.fullName,
+          email: post.user.email,
+          profilePicUrl: post.user.profilePicUrl || null,
+        }
+      : null,
     description: post.description,
     media,
     likes: likesArray,

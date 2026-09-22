@@ -51,6 +51,8 @@ export interface IOriginalPostSummary {
   userId: string;
   userName: string;
   userProfilePicture: string | null;
+  username?: string | null;
+  user?: IPostAuthor | null;
   description: string | null;
   media: IPostMedia | null;
 }
@@ -62,6 +64,8 @@ export interface IPostResponse {
   userName: string;
   userEmail: string;
   userProfilePicture: string | null;
+  username?: string | null;
+  user?: IPostAuthor | null;
   description: string | null;
   media: IPostMedia | null;
   likes: string[];
