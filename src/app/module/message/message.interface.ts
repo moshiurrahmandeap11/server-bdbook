@@ -35,6 +35,7 @@ export interface IConversationItemResponse {
   lastMessage: string | null;
   unreadCount: number;
   updatedAt: Date;
+  isRequest?: boolean;
 }
 
 export interface IUnreadMessagesCountResponse {

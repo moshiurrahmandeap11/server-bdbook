@@ -224,6 +224,27 @@ const getConversations = async (
         },
       });
 
+      // Check if current user follows this partner
+      const isFollowingPartner = await prisma.follow.findUnique({
+        where: {
+          followerId_followingId: {
+            followerId: userId,
+            followingId: p.id,
+          },
+        },
+      });
+
+      // Check if current user has ever sent a message to this partner
+      const hasSentToPartner = await prisma.message.findFirst({
+        where: {
+          senderId: userId,
+          receiverId: p.id,
+        },
+      });
+
+      // It is a Message Request if current user does NOT follow partner AND has NEVER messaged them
+      const isRequest = !isFollowingPartner && !hasSentToPartner && Boolean(lastMessage);
+
       return {
         friendId: p.id,
         friendName: p.fullName,
@@ -231,6 +252,7 @@ const getConversations = async (
         lastMessage: lastMessage ? lastMessage.message || "Media" : null,
         unreadCount,
         updatedAt: lastMessage?.createdAt || new Date(0),
+        isRequest,
       };
     })
   );
@@ -321,6 +343,51 @@ const uploadMessageMedia = async (
   };
 };
 
+const acceptMessageRequest = async (
+  userId: string,
+  partnerId: string
+): Promise<void> => {
+  // Automatically follow partner so conversation becomes mutually accepted
+  await prisma.follow.upsert({
+    where: {
+      followerId_followingId: {
+        followerId: userId,
+        followingId: partnerId,
+      },
+    },
+    update: {},
+    create: {
+      followerId: userId,
+      followingId: partnerId,
+    },
+  });
+
+  // Mark pending unread messages from partner as read
+  await prisma.message.updateMany({
+    where: {
+      senderId: partnerId,
+      receiverId: userId,
+      isRead: false,
+    },
+    data: {
+      isRead: true,
+    },
+  });
+};
+
+const declineMessageRequest = async (
+  userId: string,
+  partnerId: string
+): Promise<void> => {
+  // Delete incoming messages from this partner to decline the request cleanly
+  await prisma.message.deleteMany({
+    where: {
+      senderId: partnerId,
+      receiverId: userId,
+    },
+  });
+};
+
 export const messageService = {
   sendMessage,
   getConversations,
@@ -328,5 +395,7 @@ export const messageService = {
   markAsRead,
   getUnreadCount,
   uploadMessageMedia,
+  acceptMessageRequest,
+  declineMessageRequest,
 };
 

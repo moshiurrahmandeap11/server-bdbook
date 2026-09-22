@@ -26,5 +26,17 @@ router.post(
   messageController.uploadMessageMedia
 );
 
+router.post(
+  "/requests/accept/:partnerId",
+  auth(),
+  messageController.acceptMessageRequest
+);
+
+router.delete(
+  "/requests/decline/:partnerId",
+  auth(),
+  messageController.declineMessageRequest
+);
+
 export const messageRoutes = router;
 

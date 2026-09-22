@@ -79,6 +79,28 @@ const uploadMessageMedia = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const acceptMessageRequest = catchAsync(async (req: Request, res: Response) => {
+  const { partnerId } = req.params;
+  await messageService.acceptMessageRequest(req.user!.id, partnerId);
+
+  sendResponse(res, {
+    httpStatusCode: status.OK,
+    success: true,
+    message: "Message request accepted",
+  });
+});
+
+const declineMessageRequest = catchAsync(async (req: Request, res: Response) => {
+  const { partnerId } = req.params;
+  await messageService.declineMessageRequest(req.user!.id, partnerId);
+
+  sendResponse(res, {
+    httpStatusCode: status.OK,
+    success: true,
+    message: "Message request declined",
+  });
+});
+
 export const messageController = {
   sendMessage,
   getConversations,
@@ -86,5 +108,7 @@ export const messageController = {
   markAsRead,
   getUnreadCount,
   uploadMessageMedia,
+  acceptMessageRequest,
+  declineMessageRequest,
 };
 
