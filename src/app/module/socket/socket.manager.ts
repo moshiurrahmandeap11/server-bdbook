@@ -291,6 +291,7 @@ export class SocketManager {
       socket.callInfo = {
         from: data.from,
         fromName: data.fromName,
+        fromAvatar: data.fromAvatar,
         type: data.type,
         offer: data.offer,
         to: data.to,
@@ -310,6 +311,7 @@ export class SocketManager {
         this.io.to(targetSocketId).emit("incoming_call", {
           from: data.from,
           fromName: data.fromName,
+          fromAvatar: data.fromAvatar,
           type: data.type,
           offer: data.offer,
         });
@@ -328,18 +330,27 @@ export class SocketManager {
     });
 
     socket.on("reject_call", (data: { to: string }) => {
+      delete socket.callInfo;
       const targetSocketId = this.onlineUsers.get(data.to);
       if (targetSocketId) {
         this.io.to(targetSocketId).emit("call_rejected");
+        const targetSocket = this.io.sockets.sockets.get(
+          targetSocketId
+        ) as ICustomSocket | undefined;
+        if (targetSocket) delete targetSocket.callInfo;
       }
     });
 
     socket.on("end_call", (data: { to: string }) => {
+      delete socket.callInfo;
       const targetSocketId = this.onlineUsers.get(data.to);
       if (targetSocketId) {
         this.io.to(targetSocketId).emit("call_ended");
+        const targetSocket = this.io.sockets.sockets.get(
+          targetSocketId
+        ) as ICustomSocket | undefined;
+        if (targetSocket) delete targetSocket.callInfo;
       }
-      delete socket.callInfo;
     });
 
     socket.on("call_busy", (data: { to: string }) => {

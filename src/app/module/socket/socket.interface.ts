@@ -9,6 +9,7 @@ export interface ICustomSocket extends Socket {
   callInfo?: {
     from: string;
     fromName: string;
+    fromAvatar?: string | null;
     type: string;
     offer: unknown;
     to: string;
@@ -73,6 +74,7 @@ export interface ICallUserPayload {
   to: string;
   from: string;
   fromName: string;
+  fromAvatar?: string | null;
   type: string;
   offer: unknown;
 }
