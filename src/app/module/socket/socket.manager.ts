@@ -395,9 +395,14 @@ export class SocketManager {
     });
 
     socket.on("call_busy", (data: { to: string }) => {
+      delete socket.callInfo;
       const targetSocketId = this.onlineUsers.get(data.to);
       if (targetSocketId) {
         this.io.to(targetSocketId).emit("call_busy");
+        const targetSocket = this.io.sockets.sockets.get(
+          targetSocketId
+        ) as ICustomSocket | undefined;
+        if (targetSocket) delete targetSocket.callInfo;
       }
     });
 
