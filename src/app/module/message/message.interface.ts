@@ -6,6 +6,7 @@ export interface ISendMessagePayload {
   mediaUrl?: string | null;
   fileName?: string | null;
   fileSize?: number | null;
+  callDuration?: number | null;
   tempId?: string | null;
   conversationId?: string | null;
 }
@@ -33,6 +34,7 @@ export interface IMessageItemResponse {
   mediaUrl: string | null;
   fileName: string | null;
   fileSize: number | null;
+  callDuration?: number | null;
   isRead: boolean;
   isDelivered: boolean;
   createdAt: Date;

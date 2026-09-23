@@ -55,6 +55,7 @@ const formatMessage = (msg: any): IMessageItemResponse => {
     mediaUrl: msg.mediaUrl,
     fileName: msg.fileName,
     fileSize: msg.fileSize,
+    callDuration: msg.callDuration ?? null,
     isRead: msg.isRead,
     isDelivered: msg.isDelivered,
     createdAt: msg.createdAt,
@@ -94,6 +95,12 @@ const sendMessage = async (
   const preview =
     messageType === "share"
       ? "📱 Shared a post"
+      : messageType === "audio_call"
+      ? "📞 Audio Call"
+      : messageType === "video_call"
+      ? "🎥 Video Call"
+      : messageType === "missed_call"
+      ? "📞 Missed Call"
       : message ||
         (messageType === "image"
           ? "📷 Photo"
@@ -127,6 +134,7 @@ const sendMessage = async (
         mediaUrl,
         fileName,
         fileSize,
+        callDuration: payload.callDuration ?? null,
         isRead: false,
         isDelivered: true,
       },
@@ -210,6 +218,7 @@ const sendMessage = async (
       mediaUrl,
       fileName,
       fileSize,
+      callDuration: payload.callDuration ?? null,
       isRead: false,
       isDelivered: true,
     },

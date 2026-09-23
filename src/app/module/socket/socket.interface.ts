@@ -13,6 +13,9 @@ export interface ICustomSocket extends Socket {
     type: string;
     offer: unknown;
     to: string;
+    startTime?: number;
+    isAnswered?: boolean;
+    conversationId?: string;
   };
 }
 
@@ -92,10 +95,11 @@ export interface ITypingPayload {
 export interface ISendSocketMessagePayload {
   receiverId: string;
   message?: string;
-  messageType?: "text" | "image" | "video" | "file" | "share";
+  messageType?: "text" | "image" | "video" | "file" | "share" | "audio_call" | "video_call" | "missed_call";
   mediaUrl?: string | null;
   fileName?: string | null;
   fileSize?: number | null;
+  callDuration?: number | null;
   tempId?: string | null;
 }
 

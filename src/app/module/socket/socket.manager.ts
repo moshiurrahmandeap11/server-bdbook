@@ -30,10 +30,12 @@ export class SocketManager {
   public io: Server;
   public onlineUsers: Map<string, string>;
   public rooms: Map<string, IRoomSession>;
+  public offlineTimers: Map<string, NodeJS.Timeout>;
 
   constructor(server: HttpServer) {
     this.onlineUsers = new Map();
     this.rooms = new Map();
+    this.offlineTimers = new Map();
 
     this.io = new Server(server, {
       cors: {
@@ -154,6 +156,11 @@ export class SocketManager {
   private handleConnection(socket: ICustomSocket) {
     const userId = socket.userId!;
     console.log("User connected:", userId, socket.isGuest ? "(guest)" : "(auth)");
+
+    if (this.offlineTimers.has(userId)) {
+      clearTimeout(this.offlineTimers.get(userId)!);
+      this.offlineTimers.delete(userId);
+    }
 
     this.onlineUsers.set(userId, socket.id);
     const onlineList = Array.from(this.onlineUsers.keys());
@@ -328,7 +335,7 @@ export class SocketManager {
     );
 
     // ==================== CALL EVENT HANDLERS ====================
-    socket.on("call_user", (data: ICallUserPayload) => {
+    socket.on("call_user", async (data: ICallUserPayload) => {
       socket.callInfo = {
         from: data.from,
         fromName: data.fromName,
@@ -336,6 +343,8 @@ export class SocketManager {
         type: data.type,
         offer: data.offer,
         to: data.to,
+        startTime: Date.now(),
+        isAnswered: false,
       };
 
       const targetSocketId = this.onlineUsers.get(data.to);
@@ -346,6 +355,16 @@ export class SocketManager {
 
         if (targetSocket?.callInfo) {
           socket.emit("call_busy", { message: "User is on another call" });
+          try {
+            await messageService.sendMessage(socket.userId!, data.to, {
+              message: `Missed ${data.type === "video" ? "video" : "audio"} call`,
+              messageType: "missed_call",
+              callDuration: 0,
+            });
+          } catch (e) {
+            console.error("Failed to log missed call (busy):", e);
+          }
+          delete socket.callInfo;
           return;
         }
 
@@ -358,19 +377,45 @@ export class SocketManager {
         });
       } else {
         socket.emit("call_error", { message: "User is offline" });
+        try {
+          await messageService.sendMessage(socket.userId!, data.to, {
+            message: `Missed ${data.type === "video" ? "video" : "audio"} call`,
+            messageType: "missed_call",
+            callDuration: 0,
+          });
+        } catch (e) {
+          console.error("Failed to log missed call (offline):", e);
+        }
+        delete socket.callInfo;
       }
     });
 
     socket.on("answer_call", (data: IAnswerCallPayload) => {
       const targetSocketId = this.onlineUsers.get(data.to);
       if (targetSocketId) {
+        const targetSocket = this.io.sockets.sockets.get(
+          targetSocketId
+        ) as ICustomSocket | undefined;
+
+        if (targetSocket?.callInfo) {
+          targetSocket.callInfo.isAnswered = true;
+          targetSocket.callInfo.startTime = Date.now();
+          socket.callInfo = {
+            ...targetSocket.callInfo,
+            from: socket.userId!,
+            to: data.to,
+            isAnswered: true,
+            startTime: Date.now(),
+          };
+        }
         this.io.to(targetSocketId).emit("call_accepted", { answer: data.answer });
       } else {
         socket.emit("call_error", { message: "User disconnected" });
       }
     });
 
-    socket.on("reject_call", (data: { to: string }) => {
+    socket.on("reject_call", async (data: { to: string }) => {
+      const callInfo = socket.callInfo;
       delete socket.callInfo;
       const targetSocketId = this.onlineUsers.get(data.to);
       if (targetSocketId) {
@@ -380,17 +425,63 @@ export class SocketManager {
         ) as ICustomSocket | undefined;
         if (targetSocket) delete targetSocket.callInfo;
       }
+
+      try {
+        await messageService.sendMessage(data.to, socket.userId!, {
+          message: `Missed ${callInfo?.type === "video" ? "video" : "audio"} call`,
+          messageType: "missed_call",
+          callDuration: 0,
+        });
+      } catch (e) {
+        console.error("Failed to log rejected call:", e);
+      }
     });
 
-    socket.on("end_call", (data: { to: string }) => {
+    socket.on("end_call", async (data: { to: string }) => {
+      const callInfo = socket.callInfo;
       delete socket.callInfo;
       const targetSocketId = this.onlineUsers.get(data.to);
+      let targetCallInfo = null;
       if (targetSocketId) {
         this.io.to(targetSocketId).emit("call_ended");
         const targetSocket = this.io.sockets.sockets.get(
           targetSocketId
         ) as ICustomSocket | undefined;
-        if (targetSocket) delete targetSocket.callInfo;
+        if (targetSocket) {
+          targetCallInfo = targetSocket.callInfo;
+          delete targetSocket.callInfo;
+        }
+      }
+
+      const activeCall = callInfo || targetCallInfo;
+      if (activeCall) {
+        const isAnswered = activeCall.isAnswered;
+        const callType = activeCall.type === "video" ? "video_call" : "audio_call";
+        const durationSec =
+          activeCall.startTime && isAnswered
+            ? Math.max(1, Math.round((Date.now() - activeCall.startTime) / 1000))
+            : 0;
+
+        try {
+          if (isAnswered && durationSec > 0) {
+            const mins = Math.floor(durationSec / 60);
+            const secs = durationSec % 60;
+            const durStr = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+            await messageService.sendMessage(activeCall.from, activeCall.to, {
+              message: `${activeCall.type === "video" ? "Video" : "Audio"} call ended • ${durStr}`,
+              messageType: callType,
+              callDuration: durationSec,
+            });
+          } else {
+            await messageService.sendMessage(activeCall.from, activeCall.to, {
+              message: `Missed ${activeCall.type === "video" ? "video" : "audio"} call`,
+              messageType: "missed_call",
+              callDuration: 0,
+            });
+          }
+        } catch (e) {
+          console.error("Failed to log call message:", e);
+        }
       }
     });
 
@@ -465,8 +556,6 @@ export class SocketManager {
       this.handleLeaveRoom(socket, socket.roomId);
     }
 
-    this.onlineUsers.delete(socket.userId!);
-
     if (socket.callInfo) {
       const targetSocketId = this.onlineUsers.get(socket.callInfo.to);
       if (targetSocketId) {
@@ -475,8 +564,24 @@ export class SocketManager {
       delete socket.callInfo;
     }
 
-    this.io.emit("user_offline", socket.userId);
-    console.log("User disconnected:", socket.userId);
+    const userId = socket.userId;
+    if (userId && !socket.isGuest) {
+      if (this.offlineTimers.has(userId)) {
+        clearTimeout(this.offlineTimers.get(userId)!);
+      }
+      const timer = setTimeout(() => {
+        this.onlineUsers.delete(userId);
+        this.offlineTimers.delete(userId);
+        this.io.emit("user_offline", userId);
+        console.log("User offline after grace period:", userId);
+      }, 60000);
+      this.offlineTimers.set(userId, timer);
+    } else if (userId) {
+      this.onlineUsers.delete(userId);
+      this.io.emit("user_offline", userId);
+    }
+
+    console.log("User disconnected (grace period active):", socket.userId);
   }
 
   public getOnlineUsers(): string[] {

@@ -4,6 +4,9 @@ enum MessageType {
   video
   file
   share
+  audio_call
+  video_call
+  missed_call
 }
 
 model Conversation {
@@ -49,6 +52,7 @@ model Message {
   mediaUrl       String?
   fileName       String?
   fileSize       Int?
+  callDuration   Int?
   isRead         Boolean     @default(false)
   isDelivered    Boolean     @default(true)
   createdAt      DateTime    @default(now())
