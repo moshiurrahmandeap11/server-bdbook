@@ -201,18 +201,38 @@ const sendMessage = async (
   }
 
   // 2. Otherwise handle 1-on-1 private chat
-  const receiver = await prisma.user.findUnique({
-    where: { id: receiverOrConvId },
+  let targetReceiverId: string = receiverOrConvId;
+  let targetConversationId: string | null = null;
+
+  // Check if receiverOrConvId is an existing 1-on-1 conversation
+  const directConv = await prisma.conversation.findFirst({
+    where: { id: receiverOrConvId, isGroup: false },
+    include: { participants: true },
   });
-  if (!receiver) {
-    throw new AppError(status.NOT_FOUND, "Receiver not found");
+
+  if (directConv) {
+    targetConversationId = directConv.id;
+    const otherParticipant = directConv.participants.find((p) => p.userId !== senderId);
+    if (!otherParticipant) {
+      throw new AppError(status.BAD_REQUEST, "Conversation has no valid recipient");
+    }
+    targetReceiverId = otherParticipant.userId;
+  } else {
+    // receiverOrConvId is a user ID
+    const receiver = await prisma.user.findUnique({
+      where: { id: receiverOrConvId },
+    });
+    if (!receiver) {
+      throw new AppError(status.NOT_FOUND, "Receiver not found");
+    }
+    targetReceiverId = receiver.id;
   }
 
   // Create 1-on-1 message record
   const savedMessage = await prisma.message.create({
     data: {
       senderId,
-      receiverId: receiverOrConvId,
+      receiverId: targetReceiverId,
       message,
       messageType,
       mediaUrl,
@@ -245,19 +265,9 @@ const sendMessage = async (
   });
 
   // Manage conversation record
-  const existingConv = await prisma.conversation.findFirst({
-    where: {
-      isGroup: false,
-      AND: [
-        { participants: { some: { userId: senderId } } },
-        { participants: { some: { userId: receiverOrConvId } } },
-      ],
-    },
-  });
-
-  if (existingConv) {
+  if (targetConversationId) {
     await prisma.conversation.update({
-      where: { id: existingConv.id },
+      where: { id: targetConversationId },
       data: {
         lastMessage: preview,
         lastMessageTime: now,
@@ -266,22 +276,47 @@ const sendMessage = async (
 
     await prisma.message.update({
       where: { id: savedMessage.id },
-      data: { conversationId: existingConv.id },
+      data: { conversationId: targetConversationId },
     });
   } else {
-    await prisma.conversation.create({
-      data: {
+    const existingConv = await prisma.conversation.findFirst({
+      where: {
         isGroup: false,
-        lastMessage: preview,
-        lastMessageTime: now,
-        participants: {
-          create: [{ userId: senderId }, { userId: receiverOrConvId }],
-        },
-        messages: {
-          connect: { id: savedMessage.id },
-        },
+        AND: [
+          { participants: { some: { userId: senderId } } },
+          { participants: { some: { userId: targetReceiverId } } },
+        ],
       },
     });
+
+    if (existingConv) {
+      await prisma.conversation.update({
+        where: { id: existingConv.id },
+        data: {
+          lastMessage: preview,
+          lastMessageTime: now,
+        },
+      });
+
+      await prisma.message.update({
+        where: { id: savedMessage.id },
+        data: { conversationId: existingConv.id },
+      });
+    } else {
+      await prisma.conversation.create({
+        data: {
+          isGroup: false,
+          lastMessage: preview,
+          lastMessageTime: now,
+          participants: {
+            create: [{ userId: senderId }, { userId: targetReceiverId }],
+          },
+          messages: {
+            connect: { id: savedMessage.id },
+          },
+        },
+      });
+    }
   }
 
   const formatted = {
@@ -292,7 +327,7 @@ const sendMessage = async (
   // Socket notification to receiver
   if (emitMessageCallback) {
     try {
-      emitMessageCallback(receiverOrConvId, formatted);
+      emitMessageCallback(targetReceiverId, formatted);
     } catch {
       // Non-blocking
     }
@@ -474,12 +509,12 @@ const getMessages = async (
   userId: string,
   targetId: string
 ): Promise<IMessageItemResponse[]> => {
-  // Check if targetId is a group conversation
-  const groupConv = await prisma.conversation.findFirst({
-    where: { id: targetId, isGroup: true },
+  // 1. Check if targetId is an existing conversation ID (group or 1-on-1)
+  const existingConv = await prisma.conversation.findUnique({
+    where: { id: targetId },
   });
 
-  if (groupConv) {
+  if (existingConv) {
     const messages = await prisma.message.findMany({
       where: {
         conversationId: targetId,
