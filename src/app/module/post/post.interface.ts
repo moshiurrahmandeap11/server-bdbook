@@ -28,6 +28,7 @@ export interface IPostCommentResponse {
   postId: string;
   userId: string;
   userName: string;
+  userUsername?: string | null;
   userProfilePicture: string | null;
   text: string;
   parentId?: string | null;

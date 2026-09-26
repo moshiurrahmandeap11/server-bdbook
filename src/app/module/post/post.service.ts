@@ -52,6 +52,7 @@ const formatPost = (post: any, currentUserId?: string): IPostResponse => {
       postId: c.postId,
       userId: c.userId,
       userName: c.user?.fullName || "User",
+      userUsername: c.user?.username || null,
       userProfilePicture: c.user?.profilePicUrl || null,
       text: c.text,
       parentId: c.parentId,
@@ -407,6 +408,7 @@ const addComment = async (
         select: {
           id: true,
           fullName: true,
+          username: true,
           profilePicUrl: true,
         },
       },
@@ -440,6 +442,7 @@ const addComment = async (
     postId: comment.postId,
     userId: comment.userId,
     userName: comment.user.fullName,
+    userUsername: comment.user.username || null,
     userProfilePicture: comment.user.profilePicUrl,
     text: comment.text,
     parentId: comment.parentId,
