@@ -22,7 +22,7 @@ import {
 } from "./post.interface";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const formatPost = (post: any): IPostResponse => {
+const formatPost = (post: any, currentUserId?: string): IPostResponse => {
   const media: IPostMedia | null = post.mediaUrl
     ? {
         url: post.mediaUrl,
@@ -36,6 +36,9 @@ const formatPost = (post: any): IPostResponse => {
 
   const likesArray = (post.likes || []).map((l: { userId: string }) => l.userId);
   const repostsArray = (post.reposts || []).map((r: { userId: string }) => r.userId);
+  const isSaved = currentUserId
+    ? (post.savedPosts || []).some((s: { userId: string }) => s.userId === currentUserId)
+    : false;
 
   // Group root comments and replies
   const rawComments = post.comments || [];
@@ -135,6 +138,7 @@ const formatPost = (post: any): IPostResponse => {
     createdAt: post.createdAt,
     updatedAt: post.updatedAt,
     isActive: post.isActive,
+    isSaved: typeof post.isSaved === "boolean" ? post.isSaved : isSaved,
   };
 };
 
@@ -149,6 +153,11 @@ const postInclude = {
     },
   },
   likes: {
+    select: {
+      userId: true,
+    },
+  },
+  savedPosts: {
     select: {
       userId: true,
     },
@@ -226,7 +235,8 @@ const createPost = async (
 
 const getAllPosts = async (
   filters: IPostFilters,
-  pagination: IPaginationOptions
+  pagination: IPaginationOptions,
+  currentUserId?: string
 ): Promise<IPaginatedResult<IPostResponse>> => {
   const page = Number(pagination.page) || 1;
   const limit = Number(pagination.limit) || 10;
@@ -261,11 +271,11 @@ const getAllPosts = async (
       total,
       totalPages: Math.ceil(total / limit),
     },
-    data: posts.map(formatPost),
+    data: posts.map((p) => formatPost(p, currentUserId)),
   };
 };
 
-const getPostById = async (postId: string): Promise<IPostResponse> => {
+const getPostById = async (postId: string, currentUserId?: string): Promise<IPostResponse> => {
   const post = await prisma.post.findUnique({
     where: { id: postId, isActive: true },
     include: postInclude,
@@ -275,17 +285,17 @@ const getPostById = async (postId: string): Promise<IPostResponse> => {
     throw new AppError(status.NOT_FOUND, "Post not found");
   }
 
-  return formatPost(post);
+  return formatPost(post, currentUserId);
 };
 
-const getUserPosts = async (targetUserId: string): Promise<IPostResponse[]> => {
+const getUserPosts = async (targetUserId: string, currentUserId?: string): Promise<IPostResponse[]> => {
   const posts = await prisma.post.findMany({
     where: { userId: targetUserId, isActive: true },
     orderBy: { createdAt: "desc" },
     include: postInclude,
   });
 
-  return posts.map(formatPost);
+  return posts.map((p) => formatPost(p, currentUserId));
 };
 
 const getPostLikes = async (postId: string): Promise<ILikerUserResponse[]> => {
@@ -633,6 +643,53 @@ const toggleSavePost = async (
   return { isSaved: true };
 };
 
+const getSavedPosts = async (
+  userId: string,
+  pagination: IPaginationOptions
+): Promise<IPaginatedResult<IPostResponse>> => {
+  const page = Number(pagination.page) || 1;
+  const limit = Number(pagination.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  const whereClause: Prisma.SavedPostWhereInput = {
+    userId,
+    post: {
+      isActive: true,
+    },
+  };
+
+  const [savedPosts, total] = await Promise.all([
+    prisma.savedPost.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+      include: {
+        post: {
+          include: postInclude,
+        },
+      },
+    }),
+    prisma.savedPost.count({ where: whereClause }),
+  ]);
+
+  const formattedPosts: IPostResponse[] = savedPosts.map((s) => ({
+    ...formatPost(s.post, userId),
+    isSaved: true,
+    savedAt: s.createdAt,
+  }));
+
+  return {
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+    data: formattedPosts,
+  };
+};
+
 const toggleInterested = async (
   userId: string,
   postId: string
@@ -751,6 +808,7 @@ export const postService = {
   repost,
   getReposts,
   toggleSavePost,
+  getSavedPosts,
   toggleInterested,
   toggleNotInterested,
   updatePost,

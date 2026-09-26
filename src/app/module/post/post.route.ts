@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { auth } from "../../middleware/auth";
+import { auth, optionalAuth } from "../../middleware/auth";
 import { postUpload } from "../../middleware/upload";
 import { validateRequest } from "../../middleware/validateRequest";
 import { postController } from "./post.controller";
@@ -14,9 +14,10 @@ router.post(
   postController.createPost
 );
 
-router.get("/", postController.getAllPosts);
-router.get("/user/:userId", postController.getUserPosts);
-router.get("/:postId", postController.getPostById);
+router.get("/", optionalAuth(), postController.getAllPosts);
+router.get("/user/:userId", optionalAuth(), postController.getUserPosts);
+router.get("/saved", auth(), postController.getSavedPosts);
+router.get("/:postId", optionalAuth(), postController.getPostById);
 
 router.get("/:postId/likes", auth(), postController.getPostLikes);
 router.post("/:postId/like", auth(), postController.toggleLike);

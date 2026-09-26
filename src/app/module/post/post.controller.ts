@@ -26,7 +26,7 @@ const getAllPosts = catchAsync(async (req: Request, res: Response) => {
     limit: Number(req.query.limit) || 10,
   };
 
-  const result = await postService.getAllPosts(filters, pagination);
+  const result = await postService.getAllPosts(filters, pagination, req.user?.id);
 
   sendResponse(res, {
     httpStatusCode: status.OK,
@@ -39,7 +39,7 @@ const getAllPosts = catchAsync(async (req: Request, res: Response) => {
 
 const getPostById = catchAsync(async (req: Request, res: Response) => {
   const { postId } = req.params;
-  const result = await postService.getPostById(postId);
+  const result = await postService.getPostById(postId, req.user?.id);
 
   sendResponse(res, {
     httpStatusCode: status.OK,
@@ -51,7 +51,7 @@ const getPostById = catchAsync(async (req: Request, res: Response) => {
 
 const getUserPosts = catchAsync(async (req: Request, res: Response) => {
   const { userId } = req.params;
-  const result = await postService.getUserPosts(userId);
+  const result = await postService.getUserPosts(userId, req.user?.id);
 
   sendResponse(res, {
     httpStatusCode: status.OK,
@@ -175,6 +175,23 @@ const savePost = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getSavedPosts = catchAsync(async (req: Request, res: Response) => {
+  const pagination = {
+    page: Number(req.query.page) || 1,
+    limit: Number(req.query.limit) || 10,
+  };
+
+  const result = await postService.getSavedPosts(req.user!.id, pagination);
+
+  sendResponse(res, {
+    httpStatusCode: status.OK,
+    success: true,
+    message: "Saved posts fetched successfully",
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
 const markInterested = catchAsync(async (req: Request, res: Response) => {
   const { postId } = req.params;
   const result = await postService.toggleInterested(req.user!.id, postId);
@@ -245,6 +262,7 @@ export const postController = {
   repost,
   getReposts,
   savePost,
+  getSavedPosts,
   markInterested,
   markNotInterested,
   updatePost,

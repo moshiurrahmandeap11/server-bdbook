@@ -41,3 +41,29 @@ export const auth = (...requiredRoles: string[]) => {
 };
 
 export const authenticateToken = auth();
+
+export const optionalAuth = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const authHeader = req.headers.authorization;
+    const token =
+      req.cookies?.accessToken ||
+      req.cookies?.token ||
+      (authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : authHeader);
+
+    if (!token) {
+      return next();
+    }
+
+    try {
+      const decoded = jwt.verify(token, env.JWT_SECRET) as JwtPayload & IAuthUser;
+      req.user = {
+        id: decoded.id,
+        email: decoded.email,
+        role: decoded.role,
+      };
+    } catch {
+      // Optional auth: silent fail on invalid/expired token
+    }
+    next();
+  };
+};

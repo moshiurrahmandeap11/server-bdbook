@@ -82,6 +82,8 @@ export interface IPostResponse {
   createdAt: Date;
   updatedAt: Date;
   isActive: boolean;
+  isSaved?: boolean;
+  savedAt?: Date;
 }
 
 export interface ILikeResponse {
