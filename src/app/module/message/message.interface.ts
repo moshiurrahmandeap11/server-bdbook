@@ -46,7 +46,6 @@ export interface IMessageItemResponse {
 export interface IConversationParticipantItem {
   userId: string;
   name: string;
-  fileName: string;
   avatar: string | null;
 }
 
@@ -70,9 +69,13 @@ export interface IUnreadMessagesCountResponse {
 
 export interface IUploadMediaResponse {
   url: string;
+  mediaUrl: string;
   type: "image" | "video" | "document";
+  fileType: "image" | "video" | "document";
   name: string;
+  fileName: string;
   size: number;
+  fileSize: number;
 }
 
 export interface ICreateGroupPayload {
