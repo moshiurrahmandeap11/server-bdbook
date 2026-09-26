@@ -69,8 +69,8 @@ export interface IUnreadMessagesCountResponse {
 
 export interface IUploadMediaResponse {
   url: string;
-  mediaUrl: string;
   type: "image" | "video" | "document";
+  fileType: "image" | "video" | "document";
   name: string;
   size: number;
 }
