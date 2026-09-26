@@ -87,4 +87,3 @@ export interface ICreateGroupPayload {
 export interface IToggleReactionPayload {
   reaction: string;
 }
-
