@@ -660,8 +660,8 @@ const uploadMessageMedia = async (
 
   return {
     url: mediaUrl,
-    mediaUrl,
     type: fileType,
+    fileType,
     name: file.originalname,
     size: file.size,
   };
