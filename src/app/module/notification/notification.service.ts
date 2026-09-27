@@ -7,6 +7,7 @@ import {
   INotificationItemResponse,
   IUnreadCountResponse,
 } from "./notification.interface";
+import { sendPushToUser } from "./push.service";
 
 // Delegate socket emission to avoid circular dependencies
 let emitNotificationCallback: ((userId: string, notification: unknown) => void) | null = null;
@@ -87,6 +88,20 @@ const createNotification = async (
       // Non-blocking
     }
   }
+
+  // Background / App-Closed Push Notification
+  sendPushToUser(
+    input.userId,
+    notification.actor?.fullName || input.title || "Notification",
+    input.message,
+    {
+      type: "notification",
+      postId: input.postId,
+      commentId: input.commentId,
+      requestId: input.requestId,
+    },
+    { channelId: "default", priority: "high" }
+  ).catch(() => {});
 
   return formatted;
 };

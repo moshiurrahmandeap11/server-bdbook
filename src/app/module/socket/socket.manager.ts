@@ -11,6 +11,7 @@ import {
   setMessageReactionSocketEmitter,
 } from "../message/message.service";
 import { setNotificationSocketEmitter } from "../notification/notification.service";
+import { sendPushToUser } from "../notification/push.service";
 import {
   IAnswerCallPayload,
   ICallUserPayload,
@@ -356,6 +357,22 @@ export class SocketManager {
         isAnswered: false,
       };
 
+      // Dispatch high-priority incoming call push notification to target device
+      sendPushToUser(
+        data.to,
+        `Incoming ${data.type === "video" ? "Video" : "Audio"} Call`,
+        `${data.fromName || "Someone"} is calling you...`,
+        {
+          type: "call",
+          from: data.from,
+          fromName: data.fromName,
+          fromAvatar: data.fromAvatar,
+          callType: data.type,
+          offer: data.offer,
+        },
+        { channelId: "calls", priority: "high", sound: "default" }
+      ).catch(() => {});
+
       const targetSocketId = this.onlineUsers.get(data.to);
       if (targetSocketId) {
         const targetSocket = this.io.sockets.sockets.get(
@@ -385,17 +402,40 @@ export class SocketManager {
           offer: data.offer,
         });
       } else {
-        socket.emit("call_error", { message: "User is offline" });
-        try {
-          await messageService.sendMessage(socket.userId!, data.to, {
-            message: `Missed ${data.type === "video" ? "video" : "audio"} call`,
-            messageType: "missed_call",
-            callDuration: 0,
-          });
-        } catch (e) {
-          console.error("Failed to log missed call (offline):", e);
+        // Target is in background or app is closed. Check if they have a push token
+        const targetUser = await prisma.user.findUnique({
+          where: { id: data.to },
+          select: { pushToken: true },
+        });
+
+        if (targetUser?.pushToken) {
+          console.log(`[Call] Receiver ${data.to} is in background/closed, ringing via push notification`);
+          setTimeout(async () => {
+            if (socket.callInfo && !socket.callInfo.isAnswered) {
+              socket.emit("call_timeout", { message: "No answer" });
+              try {
+                await messageService.sendMessage(socket.userId!, data.to, {
+                  message: `Missed ${data.type === "video" ? "video" : "audio"} call`,
+                  messageType: "missed_call",
+                  callDuration: 0,
+                });
+              } catch {}
+              delete socket.callInfo;
+            }
+          }, 35000);
+        } else {
+          socket.emit("call_error", { message: "User is offline" });
+          try {
+            await messageService.sendMessage(socket.userId!, data.to, {
+              message: `Missed ${data.type === "video" ? "video" : "audio"} call`,
+              messageType: "missed_call",
+              callDuration: 0,
+            });
+          } catch (e) {
+            console.error("Failed to log missed call (offline):", e);
+          }
+          delete socket.callInfo;
         }
-        delete socket.callInfo;
       }
     });
 

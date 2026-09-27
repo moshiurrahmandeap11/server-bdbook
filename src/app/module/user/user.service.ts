@@ -467,6 +467,17 @@ const deleteUser = async (
   });
 };
 
+const updatePushToken = async (
+  userId: string,
+  pushToken: string | null
+): Promise<{ success: boolean }> => {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { pushToken: pushToken ? pushToken.trim() : null },
+  });
+  return { success: true };
+};
+
 export const userService = {
   getMe,
   getAllUsers,
@@ -481,5 +492,6 @@ export const userService = {
   removeCoverPhoto,
   changePassword,
   deleteUser,
+  updatePushToken,
 };
 

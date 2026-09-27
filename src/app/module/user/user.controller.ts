@@ -179,6 +179,18 @@ const deleteUser = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const updatePushToken = catchAsync(async (req, res) => {
+  const userId = req.user.id;
+  const { pushToken } = req.body;
+  const result = await userService.updatePushToken(userId, pushToken);
+  sendResponse(res, {
+    statusCode: status.OK,
+    success: true,
+    message: "Push token updated successfully",
+    data: result,
+  });
+});
+
 export const userController = {
   getMe,
   getAllUsers,
@@ -193,5 +205,6 @@ export const userController = {
   removeCoverPhoto,
   changePassword,
   deleteUser,
+  updatePushToken,
 };
 

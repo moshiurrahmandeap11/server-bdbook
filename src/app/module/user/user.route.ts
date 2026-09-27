@@ -79,6 +79,8 @@ router.post(
   userController.changePassword
 );
 
+router.post("/push-token", auth(), userController.updatePushToken);
+
 // Mount friend and message sub-routes onto /users for 100% frontend backwards compatibility
 router.use("/", friendRoutes);
 router.use("/", messageRoutes);

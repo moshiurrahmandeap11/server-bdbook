@@ -10,6 +10,7 @@ import {
   IUnreadMessagesCountResponse,
   IUploadMediaResponse,
 } from "./message.interface";
+import { sendPushToUser, sendPushToUsers } from "../notification/push.service";
 
 let emitMessageCallback: ((receiverId: string, message: unknown) => void) | null = null;
 let emitGroupMessageCallback:
@@ -195,6 +196,22 @@ const sendMessage = async (
       } catch {
         // Non-blocking
       }
+
+      // Background / App-Closed Push Notification
+      sendPushToUsers(
+        recipientIds,
+        groupConv.name || sender.fullName,
+        `${sender.fullName}: ${preview || "Sent a message"}`,
+        {
+          type: "message",
+          conversationId: groupConv.id,
+          senderId,
+          senderName: sender.fullName,
+          senderAvatar: sender.profilePicUrl,
+          isGroup: true,
+        },
+        { channelId: "messages", priority: "high" }
+      ).catch(() => {});
     }
 
     return formatted;
@@ -332,6 +349,21 @@ const sendMessage = async (
       // Non-blocking
     }
   }
+
+  // Background / App-Closed Push Notification
+  sendPushToUser(
+    targetReceiverId,
+    sender.fullName,
+    preview || "Sent a message",
+    {
+      type: "message",
+      conversationId: formatted.conversationId,
+      senderId,
+      senderName: sender.fullName,
+      senderAvatar: sender.profilePicUrl,
+    },
+    { channelId: "messages", priority: "high" }
+  ).catch(() => {});
 
   return formatted;
 };
