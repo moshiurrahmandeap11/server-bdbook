@@ -61,6 +61,7 @@ export interface IConversationItemResponse {
   isGroup?: boolean;
   adminId?: string | null;
   participants?: IConversationParticipantItem[];
+  lastActiveAt?: Date | string | null;
 }
 
 export interface IUnreadMessagesCountResponse {

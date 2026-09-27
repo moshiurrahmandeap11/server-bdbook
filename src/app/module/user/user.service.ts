@@ -53,6 +53,7 @@ const formatUserProfile = (user: User): IUserProfileResponse => {
       : null,
     isVerified: user.isVerified,
     isActive: user.isActive,
+    lastActiveAt: (user as any).lastActiveAt || null,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };

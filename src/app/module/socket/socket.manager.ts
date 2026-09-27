@@ -167,6 +167,15 @@ export class SocketManager {
     this.io.emit("user_online", onlineList);
     socket.emit("getOnlineUsers", onlineList);
 
+    if (userId && !socket.isGuest) {
+      prisma.user
+        .update({
+          where: { id: userId },
+          data: { lastActiveAt: new Date() },
+        })
+        .catch(() => {});
+    }
+
     // ==================== ROOM EVENT HANDLERS ====================
     socket.on("create_room", (data: ICreateRoomPayload) => {
       const effectiveUserId = data.userId || socket.userId!;
@@ -572,7 +581,18 @@ export class SocketManager {
       const timer = setTimeout(() => {
         this.onlineUsers.delete(userId);
         this.offlineTimers.delete(userId);
+        const lastActiveAt = new Date();
         this.io.emit("user_offline", userId);
+        this.io.emit("user_last_active", {
+          userId,
+          lastActiveAt: lastActiveAt.toISOString(),
+        });
+        prisma.user
+          .update({
+            where: { id: userId },
+            data: { lastActiveAt },
+          })
+          .catch(() => {});
         console.log("User offline after grace period:", userId);
       }, 60000);
       this.offlineTimers.set(userId, timer);

@@ -384,6 +384,7 @@ const getConversations = async (
         id: true,
         fullName: true,
         profilePicUrl: true,
+        lastActiveAt: true,
       },
     });
 
@@ -439,6 +440,7 @@ const getConversations = async (
           updatedAt: lastMessage?.createdAt || new Date(0),
           isRequest,
           isGroup: false,
+          lastActiveAt: p.lastActiveAt,
         };
       })
     );

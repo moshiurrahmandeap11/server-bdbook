@@ -52,6 +52,7 @@ export interface IUserProfileResponse {
   } | null;
   isVerified: boolean;
   isActive: boolean;
+  lastActiveAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
